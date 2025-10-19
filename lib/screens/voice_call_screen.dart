@@ -258,7 +258,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                       textAlign: TextAlign.center,
                     ),
                     
-                    if (remoteParticipants.isNotEmpty) ..[
+                    if (remoteParticipants.isNotEmpty) ...[
                       SizedBox(height: 20),
                       Text(
                         '${remoteParticipants.length} participant${remoteParticipants.length > 1 ? 's' : ''} connected',
