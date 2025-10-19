@@ -7,16 +7,54 @@ class LoginScreen extends StatefulWidget {
   _LoginScreenState createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
   bool _isLoading = false;
   bool _isInitializing = true;
   String _statusMessage = 'Initializing authentication...';
+  
+  late AnimationController _glowController;
+  late Animation<double> _glowAnimation;
+  late AnimationController _logoController;
+  late Animation<double> _logoAnimation;
 
   @override
   void initState() {
     super.initState();
+    
+    _glowController = AnimationController(
+      duration: Duration(seconds: 3),
+      vsync: this,
+    )..repeat();
+    
+    _glowAnimation = Tween<double>(
+      begin: 0.3,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _glowController,
+      curve: Curves.easeInOut,
+    ));
+    
+    _logoController = AnimationController(
+      duration: Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    
+    _logoAnimation = CurvedAnimation(
+      parent: _logoController,
+      curve: Curves.elasticOut,
+    );
+    
+    _logoController.forward();
     _initializeAuth();
+  }
+
+  @override
+  void dispose() {
+    _glowController.dispose();
+    _logoController.dispose();
+    super.dispose();
   }
 
   Future<void> _initializeAuth() async {
@@ -37,12 +75,12 @@ class _LoginScreenState extends State<LoginScreen> {
       
       setState(() {
         _isInitializing = false;
-        _statusMessage = 'Ready to login';
+        _statusMessage = 'Ready to connect';
       });
     } catch (e) {
       setState(() {
         _isInitializing = false;
-        _statusMessage = 'Authentication setup failed: $e';
+        _statusMessage = 'Setup failed: $e';
       });
     }
   }
@@ -51,14 +89,17 @@ class _LoginScreenState extends State<LoginScreen> {
     // Don't allow login if not initialized
     if (!_authService.isInitialized) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please wait, initializing...')),
+        SnackBar(
+          content: Text('Please wait, initializing...'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
 
     setState(() {
       _isLoading = true;
-      _statusMessage = 'Logging in...';
+      _statusMessage = 'Wiring up...';
     });
 
     try {
@@ -68,12 +109,12 @@ class _LoginScreenState extends State<LoginScreen> {
         _navigateToVoiceCall();
       } else {
         setState(() {
-          _statusMessage = 'Login failed';
+          _statusMessage = 'Connection failed';
         });
       }
     } catch (e) {
       setState(() {
-        _statusMessage = 'Login error: $e';
+        _statusMessage = 'Error: $e';
       });
     } finally {
       if (mounted) {
@@ -95,7 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: Colors.black,
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -103,137 +144,213 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo/Title Section
-                Container(
-                  padding: EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[600],
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Icon(
-                    Icons.voice_chat,
-                    size: 80,
-                    color: Colors.white,
-                  ),
+                // Animated OZZU Logo with glow effect
+                AnimatedBuilder(
+                  animation: _logoAnimation,
+                  builder: (context, child) {
+                    return Transform.scale(
+                      scale: _logoAnimation.value,
+                      child: AnimatedBuilder(
+                        animation: _glowAnimation,
+                        builder: (context, child) {
+                          return Container(
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.blue.withOpacity(0.4 * _glowAnimation.value),
+                                  blurRadius: 50,
+                                  spreadRadius: 20,
+                                ),
+                                BoxShadow(
+                                  color: Colors.cyan.withOpacity(0.2 * _glowAnimation.value),
+                                  blurRadius: 80,
+                                  spreadRadius: 30,
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              'OZZU',
+                              style: TextStyle(
+                                fontSize: 88,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                letterSpacing: 12,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.blue.withOpacity(0.8),
+                                    blurRadius: 20,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
                 ),
                 
-                SizedBox(height: 32),
+                SizedBox(height: 60),
                 
-                // App Title
+                // Status message
                 Text(
-                  'LiveKit Voice App',
+                  _statusMessage,
                   style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[800],
+                    fontSize: 18,
+                    color: _isInitializing ? Colors.orange : Colors.white70,
+                    fontWeight: FontWeight.w500,
                   ),
+                  textAlign: TextAlign.center,
                 ),
                 
-                SizedBox(height: 8),
+                SizedBox(height: 80),
                 
-                Text(
-                  'Real-time voice communication',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                
-                SizedBox(height: 48),
-                
-                // Status Card
-                Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        if (_isInitializing)
-                          CircularProgressIndicator()
-                        else if (_authService.isAuthenticated)
-                          Icon(Icons.check_circle, size: 48, color: Colors.green)
-                        else
-                          Icon(Icons.login, size: 48, color: Colors.blue),
-                        
-                        SizedBox(height: 12),
-                        
-                        Text(
-                          _statusMessage,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: _isInitializing ? Colors.orange : 
-                                   _authService.isAuthenticated ? Colors.green : Colors.blue,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                
-                SizedBox(height: 32),
-                
-                // Login Button
+                // Wire Up! Button
                 if (!_isInitializing && !_authService.isAuthenticated)
                   Container(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
+                    height: 70,
+                    child: ElevatedButton(
                       onPressed: _isLoading ? null : _login,
-                      icon: _isLoading 
-                          ? SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Icon(Icons.login, color: Colors.white),
-                      label: Text(
-                        _isLoading ? 'Signing in...' : 'Sign in with Keycloak',
-                        style: TextStyle(color: Colors.white, fontSize: 16),
-                      ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[600],
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                        backgroundColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        side: BorderSide(
+                          color: Colors.blue,
+                          width: 2,
                         ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(35),
+                        ),
+                      ).copyWith(
+                        overlayColor: WidgetStateProperty.all(
+                          Colors.blue.withOpacity(0.1),
+                        ),
+                      ),
+                      child: AnimatedBuilder(
+                        animation: _glowAnimation,
+                        builder: (context, child) {
+                          return Container(
+                            decoration: _isLoading ? null : BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.blue.withOpacity(0.3 * _glowAnimation.value),
+                                  blurRadius: 20,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: _isLoading 
+                                ? Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 3,
+                                          color: Colors.blue,
+                                        ),
+                                      ),
+                                      SizedBox(width: 16),
+                                      Text(
+                                        'Wiring up...',
+                                        style: TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 2,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Text(
+                                    'Wire Up!',
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 3,
+                                    ),
+                                  ),
+                          );
+                        },
                       ),
                     ),
                   ),
                 
-                SizedBox(height: 32),
+                // Loading indicator for initialization
+                if (_isInitializing) 
+                  Container(
+                    width: double.infinity,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.orange.withOpacity(0.5),
+                        width: 2,
+                      ),
+                      borderRadius: BorderRadius.circular(35),
+                    ),
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 3,
+                              color: Colors.orange,
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Text(
+                            'Preparing...',
+                            style: TextStyle(
+                              fontSize: 20,
+                              color: Colors.orange,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 
-                // Server Info
+                SizedBox(height: 60),
+                
+                // Minimal connection info at bottom
                 Container(
-                  padding: EdgeInsets.all(16),
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                    ),
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Authentication Server:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Realm: ${AuthService.realm}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                      Text(
-                        'Client: ${AuthService.clientId}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: _authService.isInitialized ? Colors.green : Colors.orange,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            _authService.isInitialized ? 'Ready' : 'Initializing',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
