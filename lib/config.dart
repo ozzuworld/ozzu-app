@@ -2,7 +2,7 @@
 class AppConfig {
   // LiveKit Server Configuration
   static const String livekitWebsocketUrl = 'wss://livekit.ozzu.world';
-  static const String livekitTokenUrl = 'https://api.ozzu.world/api/livekit/token';
+  static const String livekitTokenUrl = 'https://livekit.ozzu.world/api/livekit/token';
   
   // Keycloak Authentication Configuration
   static const String keycloakUrl = 'https://idp.ozzu.world'; // External URL for mobile
