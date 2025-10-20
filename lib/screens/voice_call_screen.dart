@@ -22,7 +22,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   String statusMessage = 'Initializing...';
   
   final String websocketUrl = 'wss://livekit.ozzu.world';
-  final String tokenUrl = 'https://api.ozzu.world/livekit/token';
+  final String tokenUrl = 'https://api.ozzu.world/api/livekit/token';  // Fixed: Added /api prefix
   
   // Fixed room name and participant name as per requirements
   final String roomName = 'ozzu-main';
@@ -407,8 +407,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           'User-Agent': 'OZZU-App/1.0',
         },
         body: json.encode({
-          'roomName': roomName,
-          'participantName': participantName,
+          'service_identity': participantName,  // Fixed: Use correct field name expected by backend
         }),
       ).timeout(Duration(seconds: 30));
       
