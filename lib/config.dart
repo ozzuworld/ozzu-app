@@ -6,7 +6,7 @@ class AppConfig {
   
   // Keycloak Authentication Configuration
   static const String keycloakUrl = 'https://idp.ozzu.world'; // External URL for mobile
-  static const String keycloakRealm = 'june-realm';
+  static const String keycloakRealm = 'allsafe';
   static const String keycloakClientId = 'june-mobile-app'; // Different client for mobile
   
   // OAuth Configuration
