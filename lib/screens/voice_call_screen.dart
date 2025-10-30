@@ -228,7 +228,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       await room!.connect(websocketUrl, token, connectOptions: const ConnectOptions(autoSubscribe: false));
 
       for (final p in room!.remoteParticipants.values) {
-        for (final pub in p.audioTracks) {
+        for (final pub in p.audioTrackPublications) {  // fixed property for 2.5.3
           final name = (pub.name ?? '').toLowerCase();
           if (p.identity == 'june-tts' || name.contains('ai')) {
             await pub.subscribe();
