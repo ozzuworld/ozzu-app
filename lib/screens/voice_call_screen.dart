@@ -435,43 +435,46 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       final token = await getToken();
       setState(() { statusMessage = 'Connecting to OZZU voice...'; });
       
-      // CRITICAL FIX: Disable auto-subscribe to prevent audio loop
-      room = Room(roomOptions: RoomOptions(
-        adaptiveStream: true, 
-        dynacast: true,
-        // ECHO PREVENTION: Don't auto-subscribe to all tracks
-        autoSubscribe: false,
-        // AUDIO OPTIMIZATION: Enable audio processing
-        audioCaptureOptions: AudioCaptureOptions(
-          echoCancellation: true,
-          noiseSuppression: true, 
-          autoGainControl: true,
-          typingNoiseDetection: true,
+      // 2.5.3-compatible: set autoSubscribe via ConnectOptions, not RoomOptions
+      room = Room(
+        roomOptions: const RoomOptions(
+          adaptiveStream: true,
+          dynacast: true,
         ),
-      ));
-      
-      // Set up event listeners BEFORE connecting
+      );
+
+      // Filter subscriptions: only AI (june-tts) / ai-* tracks
+      room!.onParticipantConnected = (RemoteParticipant participant) {
+        participant.onTrackPublished = (RemoteTrackPublication pub) async {
+          if (pub.kind == TrackType.AUDIO) {
+            if (participant.identity == 'june-tts' ||
+                (pub.name?.contains('ai') ?? false) ||
+                (pub.trackName?.contains('ai') ?? false)) {
+              await pub.subscribe();
+            }
+          }
+        };
+      };
+
       room!.addListener(_onRoomUpdate);
-      
-      // Add track subscription filtering
-      room!.on<TrackPublishedEvent>((event) {
-        print('🎵 Track published: ${event.publication.name} by ${event.participant.identity}');
-        
-        // CRITICAL: Only subscribe to AI response tracks, NOT user microphones
-        // This prevents the app from hearing its own microphone echo
-        if (event.publication.kind == TrackKind.AUDIO) {
-          // Only subscribe to TTS/AI audio tracks, not other user mics
-          if (event.participant.identity == 'june-tts' || 
-              event.publication.name == 'ai-response') {
-            print('✅ Subscribing to AI audio track');
-            event.publication.subscribe();
-          } else {
-            print('🚫 Skipping subscription to mic track from ${event.participant.identity}');
+
+      await room!.connect(
+        websocketUrl,
+        token,
+        connectOptions: const ConnectOptions(autoSubscribe: false),
+      );
+
+      // Subscribe to existing pubs after connect
+      for (final p in room!.remoteParticipants.values) {
+        for (final pub in p.audioTrackPublications) {
+          if (p.identity == 'june-tts' ||
+              (pub.name?.contains('ai') ?? false) ||
+              (pub.trackName?.contains('ai') ?? false)) {
+            await pub.subscribe();
           }
         }
-      });
-      
-      await room!.connect(websocketUrl, token);
+      }
+
       await room!.localParticipant?.setMicrophoneEnabled(false);
       
       setState(() { 
@@ -482,7 +485,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Connected to OZZU voice'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
@@ -501,7 +504,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           SnackBar(
             content: Text('Failed to connect: ${error.toString()}'),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 4),
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -523,7 +526,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Disconnected from OZZU'),
             backgroundColor: Colors.grey,
             duration: Duration(seconds: 2),
@@ -545,7 +548,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(isMuted ? 'Microphone muted' : 'Microphone unmuted'),
-              duration: Duration(seconds: 1),
+              duration: const Duration(seconds: 1),
               backgroundColor: isMuted ? Colors.orange : Colors.green,
             ),
           );
