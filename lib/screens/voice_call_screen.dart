@@ -435,12 +435,42 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       final token = await getToken();
       setState(() { statusMessage = 'Connecting to OZZU voice...'; });
       
-      room = Room(roomOptions: const RoomOptions(
+      // CRITICAL FIX: Disable auto-subscribe to prevent audio loop
+      room = Room(roomOptions: RoomOptions(
         adaptiveStream: true, 
-        dynacast: true
+        dynacast: true,
+        // ECHO PREVENTION: Don't auto-subscribe to all tracks
+        autoSubscribe: false,
+        // AUDIO OPTIMIZATION: Enable audio processing
+        audioCaptureOptions: AudioCaptureOptions(
+          echoCancellation: true,
+          noiseSuppression: true, 
+          autoGainControl: true,
+          typingNoiseDetection: true,
+        ),
       ));
       
+      // Set up event listeners BEFORE connecting
       room!.addListener(_onRoomUpdate);
+      
+      // Add track subscription filtering
+      room!.on<TrackPublishedEvent>((event) {
+        print('🎵 Track published: ${event.publication.name} by ${event.participant.identity}');
+        
+        // CRITICAL: Only subscribe to AI response tracks, NOT user microphones
+        // This prevents the app from hearing its own microphone echo
+        if (event.publication.kind == TrackKind.AUDIO) {
+          // Only subscribe to TTS/AI audio tracks, not other user mics
+          if (event.participant.identity == 'june-tts' || 
+              event.publication.name == 'ai-response') {
+            print('✅ Subscribing to AI audio track');
+            event.publication.subscribe();
+          } else {
+            print('🚫 Skipping subscription to mic track from ${event.participant.identity}');
+          }
+        }
+      });
+      
       await room!.connect(websocketUrl, token);
       await room!.localParticipant?.setMicrophoneEnabled(false);
       
