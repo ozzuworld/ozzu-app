@@ -180,7 +180,7 @@ class _AuthWrapperState extends State<AuthWrapper>
 
     // Show appropriate screen based on authentication status
     if (_authService.isAuthenticated) {
-      return VoiceCallScreen();
+      return VoiceCallScreen(startUnmuted: true); // ✅ start unmuted
     } else {
       return LoginScreen();
     }
