@@ -7,6 +7,9 @@ import '../services/keycloak_service.dart';
 import 'login_screen.dart';
 
 class VoiceCallScreen extends StatefulWidget {
+  final bool startUnmuted;
+  VoiceCallScreen({this.startUnmuted = false});
+
   @override
   _VoiceCallScreenState createState() => _VoiceCallScreenState();
 }
@@ -37,6 +40,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   @override
   void initState() {
     super.initState();
+    isMuted = !widget.startUnmuted; // ✅ start unmuted when requested
     _pulseController = AnimationController(duration: Duration(milliseconds: 1500), vsync: this)..repeat(reverse: true);
     _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
     _glowController = AnimationController(duration: Duration(seconds: 2), vsync: this)..repeat();
@@ -228,7 +232,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       await room!.connect(websocketUrl, token, connectOptions: const ConnectOptions(autoSubscribe: false));
 
       for (final p in room!.remoteParticipants.values) {
-        for (final pub in p.audioTrackPublications) {  // fixed property for 2.5.3
+        for (final pub in p.audioTrackPublications) {
           final name = (pub.name ?? '').toLowerCase();
           if (p.identity == 'june-tts' || name.contains('ai')) {
             await pub.subscribe();
@@ -236,7 +240,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         }
       }
 
-      await room!.localParticipant?.setMicrophoneEnabled(false);
+      // ✅ Enable or disable microphone based on startUnmuted
+      await room!.localParticipant?.setMicrophoneEnabled(!isMuted);
 
       setState(() { isConnected = true; isConnecting = false; statusMessage = 'Connected to OZZU'; });
     } catch (error) {
@@ -247,7 +252,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   Future<void> disconnectFromRoom() async {
     setState(() { statusMessage = 'Disconnecting...'; });
     await room?.disconnect();
-    setState(() { isConnected = false; remoteParticipants.clear(); isMuted = true; statusMessage = 'Disconnected'; });
+    setState(() { isConnected = false; remoteParticipants.clear(); isMuted = !widget.startUnmuted; statusMessage = 'Disconnected'; });
   }
 
   Future<void> toggleMute() async {
