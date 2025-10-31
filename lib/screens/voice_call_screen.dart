@@ -159,36 +159,58 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         backgroundColor: Colors.black,
         body: SafeArea(
           child: Stack(
+            alignment: Alignment.center,
             children: [
-              Center(
-                child: SizedBox(
-                  width: 280,
-                  height: 280,
-                  child: Lottie.asset(
-                    'assets/lottie/voice_button.json',
-                    controller: lottieCtrl,
-                    fit: BoxFit.contain,
-                    repeat: false, // controlled manually
-                    onLoaded: (comp) {
-                      try {
-                        // Duration is a Duration type; just set directly
-                        final duration = comp.duration;
-                        lottieCtrl.duration = duration.inMilliseconds > 0
-                            ? duration
-                            : const Duration(seconds: 2);
-                        lottieLoaded = true;
-                        _updateLottie();
-                      } catch (e) {
-                        debugPrint('❌ Lottie onLoaded error: $e');
-                        lottieCtrl.duration = const Duration(seconds: 2);
-                        lottieLoaded = true;
-                        _updateLottie();
-                      }
-                    },
+              // Faint circular backdrop for visibility on black
+              Container(
+                width: 320,
+                height: 320,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Color(0x3310B5FF), // light cyan glow
+                      Colors.transparent,
+                    ],
+                    stops: [0.0, 1.0],
                   ),
                 ),
               ),
 
+              // Center Lottie speak/mute button with color filter
+              SizedBox(
+                width: 280,
+                height: 280,
+                child: Lottie.asset(
+                  'assets/lottie/voice_button.json',
+                  controller: lottieCtrl,
+                  fit: BoxFit.contain,
+                  repeat: false, // controlled manually
+                  delegates: LottieDelegates(
+                    values: [
+                      // Tint strokes/fills to cyan for visibility on black
+                      ValueDelegate.color(["**"], value: const Color(0xFF23C4FF)),
+                    ],
+                  ),
+                  onLoaded: (comp) {
+                    try {
+                      final duration = comp.duration;
+                      lottieCtrl.duration = duration.inMilliseconds > 0
+                          ? duration
+                          : const Duration(seconds: 2);
+                      lottieLoaded = true;
+                      _updateLottie();
+                    } catch (e) {
+                      debugPrint('❌ Lottie onLoaded error: $e');
+                      lottieCtrl.duration = const Duration(seconds: 2);
+                      lottieLoaded = true;
+                      _updateLottie();
+                    }
+                  },
+                ),
+              ),
+
+              // Status dots (bottom-right)
               Positioned(
                 right: 20,
                 bottom: 28,
@@ -209,6 +231,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                 ),
               ),
 
+              // Top-right logout
               Positioned(
                 top: 16,
                 right: 16,
