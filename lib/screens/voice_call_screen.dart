@@ -151,8 +151,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     final minSide = math.min(safeWidth, safeHeight);
 
     final isTablet = media.size.shortestSide >= 600;
-    final baseFraction = isTablet ? 0.62 : 0.50; // researched defaults
-    final maxClamp = isTablet ? 820.0 : 620.0;
+    final baseFraction = isTablet ? 0.806 : 0.65; // researched defaults
+    final maxClamp = isTablet ? 1066.0 : 606.0;
 
     final lottieSize = (baseFraction * minSide).clamp(260.0, maxClamp);
     final glowSize = lottieSize + 80.0;
