@@ -30,6 +30,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   final String participantName = 'ozzu-app';
 
   late final AnimationController lottieCtrl;
+  bool lottieLoaded = false;
 
   @override
   void initState() {
@@ -127,10 +128,15 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   }
 
   void _updateLottie() {
-    if (isConnected && !isMuted) {
-      lottieCtrl..reset()..repeat();
-    } else {
-      lottieCtrl.stop();
+    if (!lottieLoaded) return;
+    try {
+      if (isConnected && !isMuted) {
+        lottieCtrl..reset()..repeat();
+      } else {
+        lottieCtrl.stop();
+      }
+    } catch (e) {
+      debugPrint('Lottie error: $e');
     }
   }
 
@@ -139,10 +145,14 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     return GestureDetector(
       onTap: isConnected ? toggleMute : null,
       onLongPress: () async {
-        if (isConnected) {
-          await disconnectFromRoom();
-        } else {
-          await connectToRoom();
+        try {
+          if (isConnected) {
+            await disconnectFromRoom();
+          } else {
+            await connectToRoom();
+          }
+        } catch (e) {
+          debugPrint('Long press error: $e');
         }
       },
       child: Scaffold(
@@ -159,33 +169,66 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                     'assets/lottie/voice_button.json',
                     controller: lottieCtrl,
                     fit: BoxFit.contain,
-                    repeat: true,
+                    repeat: false, // controlled manually
                     onLoaded: (comp) {
-                      lottieCtrl.duration = comp.duration;
-                      _updateLottie();
+                      try {
+                        final duration = comp.duration;
+                        if (duration.isFinite && !duration.isNaN) {
+                          lottieCtrl.duration = duration;
+                          lottieLoaded = true;
+                          _updateLottie();
+                        } else {
+                          debugPrint('⚠️ Invalid Lottie duration: $duration');
+                          // Use fallback duration
+                          lottieCtrl.duration = const Duration(seconds: 2);
+                          lottieLoaded = true;
+                          _updateLottie();
+                        }
+                      } catch (e) {
+                        debugPrint('❌ Lottie onLoaded error: $e');
+                      }
                     },
                   ),
                 ),
               ),
 
-              // Minimal circular status menu (bottom-right)
+              // Status dots (bottom-right)
               Positioned(
                 right: 20,
                 bottom: 28,
                 child: Row(
                   children: [
                     _StatusDot(
-                      tooltip: isConnected ? 'Connected to $roomName' : 'Disconnected',
-                      color: isConnected ? Colors.greenAccent : Colors.redAccent,
+                      tooltip: isConnected ? 'Connected' : (isConnecting ? 'Connecting...' : 'Disconnected'),
+                      color: isConnected ? Colors.greenAccent : (isConnecting ? Colors.orangeAccent : Colors.redAccent),
                       icon: Icons.wifi,
                     ),
                     const SizedBox(width: 10),
                     _StatusDot(
                       tooltip: isMuted ? 'Mic off' : 'Mic on',
-                      color: isMuted ? Colors.orangeAccent : Colors.lightBlueAccent,
+                      color: isMuted ? Colors.red.shade300 : Colors.blue.shade300,
                       icon: isMuted ? Icons.mic_off : Icons.mic,
                     ),
                   ],
+                ),
+              ),
+
+              // Top-right logout (minimal)
+              Positioned(
+                top: 16,
+                right: 16,
+                child: GestureDetector(
+                  onTap: _logout,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    child: Icon(Icons.logout, color: Colors.white38, size: 18),
+                  ),
                 ),
               ),
             ],
@@ -193,6 +236,16 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _logout() async {
+    if (isConnected) await disconnectFromRoom();
+    await _authService.logout();
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => LoginScreen()),
+      );
+    }
   }
 }
 
@@ -207,23 +260,23 @@ class _StatusDot extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Container(
-        width: 44,
-        height: 44,
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.06),
+          color: Colors.white.withOpacity(0.04),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withOpacity(0.12)),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
         ),
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Icon(icon, color: Colors.white70, size: 20),
+            Icon(icon, color: Colors.white60, size: 18),
             Positioned(
-              right: 10,
-              top: 10,
+              right: 8,
+              top: 8,
               child: Container(
-                width: 8,
-                height: 8,
+                width: 6,
+                height: 6,
                 decoration: BoxDecoration(
                   color: color,
                   shape: BoxShape.circle,
