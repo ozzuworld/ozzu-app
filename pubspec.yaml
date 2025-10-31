@@ -12,10 +12,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   livekit_client: ^2.5.3
   http: ^1.2.2
-  # Use latest stable version of keycloak_wrapper
   keycloak_wrapper: ^1.4.6
-  # Mic permission handling
   permission_handler: ^11.3.1
+  lottie: ^3.1.2
 
 dev_dependencies:
   flutter_test:
@@ -24,3 +23,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/lottie/voice_button.json
