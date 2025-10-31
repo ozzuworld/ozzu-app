@@ -143,10 +143,19 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final minSide = math.min(size.width, size.height);
-    final lottieSize = (minSide * 0.45).clamp(240.0, 520.0);
-    final glowSize = lottieSize + 60.0;
+    final media = MediaQuery.of(context);
+    final safe = media.padding;
+    final size = media.size;
+    final safeWidth = size.width - safe.left - safe.right;
+    final safeHeight = size.height - safe.top - safe.bottom;
+    final minSide = math.min(safeWidth, safeHeight);
+
+    final isTablet = media.size.shortestSide >= 600;
+    final baseFraction = isTablet ? 0.62 : 0.50; // researched defaults
+    final maxClamp = isTablet ? 820.0 : 620.0;
+
+    final lottieSize = (baseFraction * minSide).clamp(260.0, maxClamp);
+    final glowSize = lottieSize + 80.0;
 
     return GestureDetector(
       onTap: isConnected ? toggleMute : null,
@@ -165,54 +174,76 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         backgroundColor: Colors.black,
         body: SafeArea(
           child: Stack(
-            alignment: Alignment.center,
             children: [
-              // Responsive glow backdrop
-              Container(
-                width: glowSize,
-                height: glowSize,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [Color(0x3310B5FF), Colors.transparent],
-                    stops: [0.0, 1.0],
+              // Centered content
+              Center(
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: glowSize,
+                      height: glowSize,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [Color(0x3310B5FF), Colors.transparent],
+                          stops: [0.0, 1.0],
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: lottieSize,
+                      height: lottieSize,
+                      child: Lottie.asset(
+                        'assets/lottie/voice_button.json',
+                        controller: lottieCtrl,
+                        fit: BoxFit.contain,
+                        repeat: false,
+                        delegates: LottieDelegates(
+                          values: [
+                            ValueDelegate.color(["**"], value: const Color(0xFF23C4FF)),
+                          ],
+                        ),
+                        onLoaded: (comp) {
+                          try {
+                            final duration = comp.duration;
+                            lottieCtrl.duration = duration.inMilliseconds > 0
+                                ? duration
+                                : const Duration(seconds: 2);
+                            lottieLoaded = true;
+                            _updateLottie();
+                          } catch (e) {
+                            debugPrint('❌ Lottie onLoaded error: $e');
+                            lottieCtrl.duration = const Duration(seconds: 2);
+                            lottieLoaded = true;
+                            _updateLottie();
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Corner icons (kept off the Lottie)
+              Positioned(
+                top: 16,
+                right: 16,
+                child: GestureDetector(
+                  onTap: _logout,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    child: const Icon(Icons.logout, color: Colors.white38, size: 18),
                   ),
                 ),
               ),
 
-              // Responsive Lottie
-              SizedBox(
-                width: lottieSize,
-                height: lottieSize,
-                child: Lottie.asset(
-                  'assets/lottie/voice_button.json',
-                  controller: lottieCtrl,
-                  fit: BoxFit.contain,
-                  repeat: false,
-                  delegates: LottieDelegates(
-                    values: [
-                      ValueDelegate.color(["**"], value: const Color(0xFF23C4FF)),
-                    ],
-                  ),
-                  onLoaded: (comp) {
-                    try {
-                      final duration = comp.duration;
-                      lottieCtrl.duration = duration.inMilliseconds > 0
-                          ? duration
-                          : const Duration(seconds: 2);
-                      lottieLoaded = true;
-                      _updateLottie();
-                    } catch (e) {
-                      debugPrint('❌ Lottie onLoaded error: $e');
-                      lottieCtrl.duration = const Duration(seconds: 2);
-                      lottieLoaded = true;
-                      _updateLottie();
-                    }
-                  },
-                ),
-              ),
-
-              // Status dots
               Positioned(
                 right: 20,
                 bottom: 28,
@@ -230,25 +261,6 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                       icon: isMuted ? Icons.mic_off : Icons.mic,
                     ),
                   ],
-                ),
-              ),
-
-              // Logout
-              Positioned(
-                top: 16,
-                right: 16,
-                child: GestureDetector(
-                  onTap: _logout,
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withOpacity(0.1)),
-                    ),
-                    child: const Icon(Icons.logout, color: Colors.white38, size: 18),
-                  ),
                 ),
               ),
             ],
