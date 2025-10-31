@@ -194,17 +194,18 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                     SizedBox(
                       width: lottieSize,
                       height: lottieSize,
-                      delegates: LottieDelegates(values: [
-                        // Bright fog layer
-                        ValueDelegate.color(["Polygon 1", "**"], 
-                          value: const Color(0x70F0F8FF)),
-                        
-                        // Dim fog layer  
-                        ValueDelegate.color(["Polygon 1_1", "**"], 
-                          value: const Color(0x30D3D3D3)),
-                      ]),
-                          ],
-                        ),
+                      child: Lottie.asset(
+                        'assets/lottie/fog.json',
+                        controller: lottieCtrl,
+                        delegates: LottieDelegates(values: [
+                          // Bright fog layer
+                          ValueDelegate.color(["Polygon 1", "**"], 
+                            value: const Color(0x70F0F8FF)),
+                          
+                          // Dim fog layer  
+                          ValueDelegate.color(["Polygon 1_1", "**"], 
+                            value: const Color(0x30D3D3D3)),
+                        ]),
                         onLoaded: (comp) {
                           try {
                             final duration = comp.duration;
