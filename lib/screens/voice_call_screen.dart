@@ -171,7 +171,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: const Color(0xFF0A0A0F), // Softer dark blue-black
         body: SafeArea(
           child: Stack(
             children: [
@@ -186,8 +186,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
-                          colors: [Color(0x3310B5FF), Colors.transparent],
-                          stops: [0.0, 1.0],
+                          colors: [Color(0x5020B0FF), Color(0x2010B5FF), Colors.transparent], // Stronger multi-layer glow
+                          stops: [0.0, 0.5, 1.0],
                         ),
                       ),
                     ),
@@ -198,13 +198,13 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                         'assets/lottie/fog.json',
                         controller: lottieCtrl,
                         delegates: LottieDelegates(values: [
-                          // Bright misty blue (foreground)
+                          // Bright misty blue (foreground) - Much brighter
                           ValueDelegate.color(["Polygon 1", "**"], 
-                            value: const Color(0x90C8E6FF)), // Light blue mist
+                            value: const Color(0xE0E6F3FF)), // Very bright blue-white
                           
-                          // Darker fog base (background)
+                          // Darker fog base (background) - More visible
                           ValueDelegate.color(["Polygon 1_1", "**"], 
-                            value: const Color(0x40708090)), // Blue-gray base
+                            value: const Color(0x8080C0FF)), // Medium bright blue
                         ]),
                         onLoaded: (comp) {
                           try {
