@@ -195,7 +195,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                       width: lottieSize,
                       height: lottieSize,
                       child: Lottie.asset(
-                        'assets/lottie/fog.json',
+                        'assets/lottie/voice_button.json',
                         controller: lottieCtrl,
                         delegates: LottieDelegates(values: [
                           // Bright misty blue (foreground) - Much brighter
