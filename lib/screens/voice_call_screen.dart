@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:livekit_client/livekit_client.dart';
@@ -142,6 +143,11 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final minSide = math.min(size.width, size.height);
+    final lottieSize = (minSide * 0.45).clamp(240.0, 520.0);
+    final glowSize = lottieSize + 60.0;
+
     return GestureDetector(
       onTap: isConnected ? toggleMute : null,
       onLongPress: () async {
@@ -161,34 +167,30 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Faint circular backdrop for visibility on black
+              // Responsive glow backdrop
               Container(
-                width: 320,
-                height: 320,
+                width: glowSize,
+                height: glowSize,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
-                    colors: [
-                      Color(0x3310B5FF), // light cyan glow
-                      Colors.transparent,
-                    ],
+                    colors: [Color(0x3310B5FF), Colors.transparent],
                     stops: [0.0, 1.0],
                   ),
                 ),
               ),
 
-              // Center Lottie speak/mute button with color filter
+              // Responsive Lottie
               SizedBox(
-                width: 280,
-                height: 280,
+                width: lottieSize,
+                height: lottieSize,
                 child: Lottie.asset(
                   'assets/lottie/voice_button.json',
                   controller: lottieCtrl,
                   fit: BoxFit.contain,
-                  repeat: false, // controlled manually
+                  repeat: false,
                   delegates: LottieDelegates(
                     values: [
-                      // Tint strokes/fills to cyan for visibility on black
                       ValueDelegate.color(["**"], value: const Color(0xFF23C4FF)),
                     ],
                   ),
@@ -210,7 +212,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                 ),
               ),
 
-              // Status dots (bottom-right)
+              // Status dots
               Positioned(
                 right: 20,
                 bottom: 28,
@@ -231,7 +233,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                 ),
               ),
 
-              // Top-right logout
+              // Logout
               Positioned(
                 top: 16,
                 right: 16,
