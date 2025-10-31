@@ -3,6 +3,7 @@ import 'package:livekit_client/livekit_client.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'dart:math';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/keycloak_service.dart';
 import 'login_screen.dart';
 
@@ -40,7 +41,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   @override
   void initState() {
     super.initState();
-    isMuted = !widget.startUnmuted; // ✅ start unmuted when requested
+    isMuted = !widget.startUnmuted; // start unmuted when requested
     _pulseController = AnimationController(duration: Duration(milliseconds: 1500), vsync: this)..repeat(reverse: true);
     _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
     _glowController = AnimationController(duration: Duration(seconds: 2), vsync: this)..repeat();
@@ -212,6 +213,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   Future<void> connectToRoom() async {
     setState(() { isConnecting = true; statusMessage = 'Initializing connection...'; });
     try {
+      // Ensure mic permission before connecting
+      final micStatus = await Permission.microphone.request();
+      print('🔒 Mic permission status: $micStatus');
+
       final token = await getToken();
       setState(() { statusMessage = 'Connecting to OZZU voice...'; });
 
@@ -240,12 +245,18 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         }
       }
 
-      // ✅ Enable or disable microphone based on startUnmuted
-      await room!.localParticipant?.setMicrophoneEnabled(!isMuted);
+      // Force-enable mic and verify publication state
+      await room!.localParticipant?.setMicrophoneEnabled(true);
+      await Future.delayed(Duration(milliseconds: 150));
+      await room!.localParticipant?.setMicrophoneEnabled(true);
+      final pubs = room!.localParticipant?.audioTrackPublications;
+      final enabled = pubs != null && pubs.isNotEmpty && (pubs.first.muted == false);
+      print('🎤 Mic publication: tracks=${pubs?.length ?? 0} enabled=$enabled sid=${pubs?.first.track?.sid}');
 
-      setState(() { isConnected = true; isConnecting = false; statusMessage = 'Connected to OZZU'; });
+      setState(() { isConnected = true; isConnecting = false; isMuted = false; statusMessage = 'Connected to OZZU (mic on)'; });
     } catch (error) {
       setState(() { isConnected = false; isConnecting = false; statusMessage = 'Connection failed'; });
+      print('❌ connectToRoom error: $error');
     }
   }
 
@@ -258,6 +269,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   Future<void> toggleMute() async {
     if (room?.localParticipant != null) {
       await room!.localParticipant!.setMicrophoneEnabled(isMuted);
+      final pubs = room!.localParticipant?.audioTrackPublications;
+      final enabled = pubs != null && pubs.isNotEmpty && (pubs.first.muted == false);
+      print('🎚️ Toggle mic -> now enabled=$enabled');
       setState(() { isMuted = !isMuted; });
     }
   }
