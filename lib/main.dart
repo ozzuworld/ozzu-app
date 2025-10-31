@@ -4,7 +4,7 @@ import 'screens/login_screen.dart';
 import 'screens/voice_call_screen.dart';
 
 void main() {
-  runApp(OzzuApp());
+  runApp(const OzzuApp());
 }
 
 class OzzuApp extends StatelessWidget {
@@ -28,53 +28,44 @@ class OzzuApp extends StatelessWidget {
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
   @override
-  _AuthWrapperState createState() => _AuthWrapperState();
+  State<AuthWrapper> createState() => _AuthWrapperState();
 }
 
-class _AuthWrapperState extends State<AuthWrapper>
-    with TickerProviderStateMixin {
+class _AuthWrapperState extends State<AuthWrapper> {
   final AuthService _authService = AuthService();
-  bool _isInitializing = true;
-  String _errorMessage = '';
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
-    _initializeApp();
+    _bootstrap();
   }
 
-  Future<void> _initializeApp() async {
-    try {
-      print('🚀 Initializing OZZU App...');
-      await _authService.initialize();
-      setState(() {
-        _isInitializing = false;
-      });
-      print('✅ App initialization completed');
-    } catch (e) {
-      print('❌ App initialization failed: $e');
-      setState(() {
-        _isInitializing = false;
-        _errorMessage = 'Failed to initialize app: $e';
-      });
+  Future<void> _bootstrap() async {
+    await _authService.initialize();
+    setState(() => _initialized = true);
+
+    // If already authenticated, go directly to voice chat.
+    if (_authService.isAuthenticated && mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const VoiceCallScreen(startUnmuted: true)),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isInitializing) {
+    if (!_initialized) {
       return const Scaffold(
         backgroundColor: Colors.black,
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
-
-    if (_authService.isAuthenticated) {
-      return const VoiceCallScreen(startUnmuted: true);
-    } else {
-      return const LoginScreen();
-    }
+    // Show login first; after successful login, navigate to voice chat
+    return LoginScreen(onLoggedIn: () {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const VoiceCallScreen(startUnmuted: true)),
+      );
+    });
   }
 }
