@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'dart:math';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/keycloak_service.dart';
 import 'login_screen.dart';
 
 class VoiceCallScreen extends StatefulWidget {
   final bool startUnmuted;
-  VoiceCallScreen({this.startUnmuted = false});
+  const VoiceCallScreen({super.key, this.startUnmuted = false});
 
   @override
-  _VoiceCallScreenState createState() => _VoiceCallScreenState();
+  State<VoiceCallScreen> createState() => _VoiceCallScreenState();
 }
 
 class _VoiceCallScreenState extends State<VoiceCallScreen>
@@ -22,185 +22,48 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   bool isConnected = false;
   bool isMuted = true;
   bool isConnecting = false;
-  List<RemoteParticipant> remoteParticipants = [];
-  String statusMessage = 'Initializing...';
-  
+  String statusMessage = '';
+
   final String websocketUrl = 'wss://livekit.ozzu.world';
   final String tokenUrl = 'https://api.ozzu.world/api/livekit/token';
-  
   final String roomName = 'ozzu-main';
   final String participantName = 'ozzu-app';
-  
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
-  late AnimationController _glowController;
-  late Animation<double> _glowAnimation;
-  late AnimationController _scaleController;
-  late Animation<double> _scaleAnimation;
+
+  late final AnimationController lottieCtrl;
 
   @override
   void initState() {
     super.initState();
-    isMuted = !widget.startUnmuted; // start unmuted when requested
-    _pulseController = AnimationController(duration: Duration(milliseconds: 1500), vsync: this)..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
-    _glowController = AnimationController(duration: Duration(seconds: 2), vsync: this)..repeat();
-    _glowAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(CurvedAnimation(parent: _glowController, curve: Curves.easeInOut));
-    _scaleController = AnimationController(duration: Duration(milliseconds: 200), vsync: this);
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(CurvedAnimation(parent: _scaleController, curve: Curves.easeInOut));
+    isMuted = !widget.startUnmuted;
+    lottieCtrl = AnimationController(vsync: this);
     _autoConnect();
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
-    _glowController.dispose();
-    _scaleController.dispose();
+    lottieCtrl.dispose();
     disconnectFromRoom();
     super.dispose();
   }
 
   Future<void> _autoConnect() async {
-    await Future.delayed(Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 400));
     await connectToRoom();
   }
-  
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(24.0),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('OZZU', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 4)),
-                  GestureDetector(
-                    onTap: _logout,
-                    child: Container(
-                      padding: EdgeInsets.all(12),
-                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white.withOpacity(0.2))),
-                      child: Icon(Icons.logout, color: Colors.white70, size: 20),
-                    ),
-                  ),
-                ],
-              ),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    GestureDetector(
-                      onTapDown: (_) => _scaleController.forward(),
-                      onTapUp: (_) { _scaleController.reverse(); if (isConnected) toggleMute(); },
-                      onTapCancel: () => _scaleController.reverse(),
-                      child: AnimatedBuilder(
-                        animation: _scaleAnimation,
-                        builder: (context, child) => Transform.scale(
-                          scale: _scaleAnimation.value,
-                          child: AnimatedBuilder(
-                            animation: _pulseAnimation,
-                            builder: (context, child) => AnimatedBuilder(
-                              animation: _glowAnimation,
-                              builder: (context, child) => Container(
-                                width: 280, height: 280,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle, color: Colors.blue.withOpacity(0.2),
-                                  boxShadow: [
-                                    BoxShadow(color: Colors.blue.withOpacity(0.4 * _glowAnimation.value * _pulseAnimation.value), blurRadius: 60, spreadRadius: 20),
-                                    BoxShadow(color: Colors.cyan.withOpacity(0.3 * _glowAnimation.value * _pulseAnimation.value), blurRadius: 100, spreadRadius: 30),
-                                    BoxShadow(color: Colors.blue.withOpacity(0.6 * _pulseAnimation.value), blurRadius: 30, spreadRadius: -10),
-                                  ],
-                                ),
-                                child: Container(
-                                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.blue.withOpacity(0.8), width: 3)),
-                                  child: Center(
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(isConnected ? (isMuted ? Icons.mic_off : Icons.mic) : Icons.power_settings_new, size: 60, color: Colors.white),
-                                        SizedBox(height: 12),
-                                        Text(
-                                          isConnected ? (isMuted ? 'Tap to Unmute' : 'Tap to Mute') : (isConnecting ? 'Connecting...' : 'Disconnected'),
-                                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500), textAlign: TextAlign.center,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 60),
-                    Text(statusMessage, style: TextStyle(fontSize: 20, color: isConnected ? Colors.green : isConnecting ? Colors.orange : Colors.white70, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
-                    if (remoteParticipants.isNotEmpty) ...[
-                      SizedBox(height: 20),
-                      Text('${remoteParticipants.length} participant${remoteParticipants.length > 1 ? 's' : ''} connected', style: TextStyle(fontSize: 16, color: Colors.white60)),
-                    ],
-                  ],
-                ),
-              ),
-              Column(children: [
-                if (!isConnected && !isConnecting)
-                  SizedBox(
-                    width: double.infinity, height: 56,
-                    child: ElevatedButton(
-                      onPressed: connectToRoom,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green.withOpacity(0.8), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)), elevation: 0),
-                      child: Text('Reconnect', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                if (isConnected)
-                  SizedBox(
-                    width: double.infinity, height: 56,
-                    child: ElevatedButton(
-                      onPressed: disconnectFromRoom,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red.withOpacity(0.8), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)), elevation: 0),
-                      child: Text('Disconnect', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                SizedBox(height: 20),
-                Container(
-                  width: double.infinity, padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white.withOpacity(0.1))),
-                  child: Column(children: [
-                    Row(children: [
-                      Container(width: 10, height: 10, decoration: BoxDecoration(color: isConnected ? Colors.green : Colors.red, shape: BoxShape.circle)), SizedBox(width: 8),
-                      Text('Room: $roomName', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                    ]),
-                    SizedBox(height: 4),
-                    Row(children: [
-                      Container(width: 10, height: 10, decoration: BoxDecoration(color: Colors.blue, shape: BoxShape.circle)), SizedBox(width: 8),
-                      Text('User: $participantName', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                    ]),
-                  ]),
-                ),
-              ]),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-  
+
   Future<String> getToken() async {
-    setState(() { statusMessage = 'Getting authentication token...'; });
     final accessToken = await _authService.getAccessToken();
-    final response = await http.post(
-      Uri.parse(tokenUrl),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        if (accessToken != null) 'Authorization': 'Bearer $accessToken',
-        'User-Agent': 'OZZU-App/1.0',
-      },
-      body: json.encode({'service_identity': participantName}),
-    ).timeout(Duration(seconds: 30));
+    final response = await http
+        .post(
+          Uri.parse(tokenUrl),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+          },
+          body: json.encode({'service_identity': participantName}),
+        )
+        .timeout(const Duration(seconds: 30));
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       if (data is Map<String, dynamic> && data['token'] != null) return data['token'];
@@ -211,74 +74,165 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   }
 
   Future<void> connectToRoom() async {
-    setState(() { isConnecting = true; statusMessage = 'Initializing connection...'; });
+    setState(() => isConnecting = true);
     try {
-      // Ensure mic permission before connecting
       final micStatus = await Permission.microphone.request();
-      print('🔒 Mic permission status: $micStatus');
-
+      debugPrint('🔒 Mic permission: $micStatus');
       final token = await getToken();
-      setState(() { statusMessage = 'Connecting to OZZU voice...'; });
 
       room = Room(roomOptions: const RoomOptions(adaptiveStream: true, dynacast: true));
+      await room!.connect(
+        websocketUrl,
+        token,
+        connectOptions: const ConnectOptions(autoSubscribe: false),
+      );
 
-      final listener = room!.createListener();
-      listener.on<TrackPublishedEvent>((e) async {
-        final pub = e.publication;
-        final rp = e.participant;
-        if (pub.kind == TrackType.AUDIO) {
-          final name = (pub.name ?? '').toLowerCase();
-          if (rp.identity == 'june-tts' || name.contains('ai')) {
-            await pub.subscribe();
-          }
-        }
+      // Enable mic on connect
+      await room!.localParticipant?.setMicrophoneEnabled(true);
+      await Future.delayed(const Duration(milliseconds: 120));
+      await room!.localParticipant?.setMicrophoneEnabled(true);
+
+      setState(() {
+        isConnected = true;
+        isConnecting = false;
+        isMuted = false;
       });
-
-      await room!.connect(websocketUrl, token, connectOptions: const ConnectOptions(autoSubscribe: false));
-
-      for (final p in room!.remoteParticipants.values) {
-        for (final pub in p.audioTrackPublications) {
-          final name = (pub.name ?? '').toLowerCase();
-          if (p.identity == 'june-tts' || name.contains('ai')) {
-            await pub.subscribe();
-          }
-        }
-      }
-
-      // Force-enable mic and verify publication state
-      await room!.localParticipant?.setMicrophoneEnabled(true);
-      await Future.delayed(Duration(milliseconds: 150));
-      await room!.localParticipant?.setMicrophoneEnabled(true);
-      final pubs = room!.localParticipant?.audioTrackPublications;
-      final enabled = pubs != null && pubs.isNotEmpty && (pubs.first.muted == false);
-      print('🎤 Mic publication: tracks=${pubs?.length ?? 0} enabled=$enabled sid=${pubs?.first.track?.sid}');
-
-      setState(() { isConnected = true; isConnecting = false; isMuted = false; statusMessage = 'Connected to OZZU (mic on)'; });
-    } catch (error) {
-      setState(() { isConnected = false; isConnecting = false; statusMessage = 'Connection failed'; });
-      print('❌ connectToRoom error: $error');
+      _updateLottie();
+    } catch (e) {
+      debugPrint('❌ connect error: $e');
+      setState(() {
+        isConnected = false;
+        isConnecting = false;
+        isMuted = true;
+      });
+      _updateLottie();
     }
   }
 
   Future<void> disconnectFromRoom() async {
-    setState(() { statusMessage = 'Disconnecting...'; });
     await room?.disconnect();
-    setState(() { isConnected = false; remoteParticipants.clear(); isMuted = !widget.startUnmuted; statusMessage = 'Disconnected'; });
+    setState(() {
+      isConnected = false;
+      isMuted = true;
+    });
+    _updateLottie();
   }
 
   Future<void> toggleMute() async {
     if (room?.localParticipant != null) {
       await room!.localParticipant!.setMicrophoneEnabled(isMuted);
-      final pubs = room!.localParticipant?.audioTrackPublications;
-      final enabled = pubs != null && pubs.isNotEmpty && (pubs.first.muted == false);
-      print('🎚️ Toggle mic -> now enabled=$enabled');
-      setState(() { isMuted = !isMuted; });
+      setState(() => isMuted = !isMuted);
+      _updateLottie();
     }
   }
 
-  Future<void> _logout() async {
-    if (isConnected) await disconnectFromRoom();
-    await _authService.logout();
-    if (mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => LoginScreen()));
+  void _updateLottie() {
+    if (isConnected && !isMuted) {
+      lottieCtrl..reset()..repeat();
+    } else {
+      lottieCtrl.stop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: isConnected ? toggleMute : null,
+      onLongPress: () async {
+        if (isConnected) {
+          await disconnectFromRoom();
+        } else {
+          await connectToRoom();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              // Center Lottie speak/mute button
+              Center(
+                child: SizedBox(
+                  width: 280,
+                  height: 280,
+                  child: Lottie.asset(
+                    'assets/lottie/voice_button.json',
+                    controller: lottieCtrl,
+                    fit: BoxFit.contain,
+                    repeat: true,
+                    onLoaded: (comp) {
+                      lottieCtrl.duration = comp.duration;
+                      _updateLottie();
+                    },
+                  ),
+                ),
+              ),
+
+              // Minimal circular status menu (bottom-right)
+              Positioned(
+                right: 20,
+                bottom: 28,
+                child: Row(
+                  children: [
+                    _StatusDot(
+                      tooltip: isConnected ? 'Connected to $roomName' : 'Disconnected',
+                      color: isConnected ? Colors.greenAccent : Colors.redAccent,
+                      icon: Icons.wifi,
+                    ),
+                    const SizedBox(width: 10),
+                    _StatusDot(
+                      tooltip: isMuted ? 'Mic off' : 'Mic on',
+                      color: isMuted ? Colors.orangeAccent : Colors.lightBlueAccent,
+                      icon: isMuted ? Icons.mic_off : Icons.mic,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusDot extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String tooltip;
+  const _StatusDot({required this.color, required this.icon, required this.tooltip});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.06),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withOpacity(0.12)),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(icon, color: Colors.white70, size: 20),
+            Positioned(
+              right: 10,
+              top: 10,
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
