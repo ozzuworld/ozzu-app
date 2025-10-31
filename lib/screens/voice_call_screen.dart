@@ -197,15 +197,6 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                       child: Lottie.asset(
                         'assets/lottie/voice_button.json',
                         controller: lottieCtrl,
-                        delegates: LottieDelegates(values: [
-                          // Bright misty blue (foreground) - Much brighter
-                          ValueDelegate.color(["Polygon 1", "**"], 
-                            value: const Color(0xE0E6F3FF)), // Very bright blue-white
-                          
-                          // Darker fog base (background) - More visible
-                          ValueDelegate.color(["Polygon 1_1", "**"], 
-                            value: const Color(0x8080C0FF)), // Medium bright blue
-                        ]),
                         onLoaded: (comp) {
                           try {
                             final duration = comp.duration;
