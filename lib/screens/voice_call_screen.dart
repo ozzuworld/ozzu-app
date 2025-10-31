@@ -198,13 +198,13 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                         'assets/lottie/fog.json',
                         controller: lottieCtrl,
                         delegates: LottieDelegates(values: [
-                          // Bright fog layer
+                          // Bright misty blue (foreground)
                           ValueDelegate.color(["Polygon 1", "**"], 
-                            value: const Color(0x70F0F8FF)),
+                            value: const Color(0x90C8E6FF)), // Light blue mist
                           
-                          // Dim fog layer  
+                          // Darker fog base (background)
                           ValueDelegate.color(["Polygon 1_1", "**"], 
-                            value: const Color(0x30D3D3D3)),
+                            value: const Color(0x40708090)), // Blue-gray base
                         ]),
                         onLoaded: (comp) {
                           try {
