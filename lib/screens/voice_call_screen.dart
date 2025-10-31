@@ -160,7 +160,6 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         body: SafeArea(
           child: Stack(
             children: [
-              // Center Lottie speak/mute button
               Center(
                 child: SizedBox(
                   width: 280,
@@ -172,27 +171,24 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                     repeat: false, // controlled manually
                     onLoaded: (comp) {
                       try {
+                        // Duration is a Duration type; just set directly
                         final duration = comp.duration;
-                        if (duration.isFinite && !duration.isNaN) {
-                          lottieCtrl.duration = duration;
-                          lottieLoaded = true;
-                          _updateLottie();
-                        } else {
-                          debugPrint('⚠️ Invalid Lottie duration: $duration');
-                          // Use fallback duration
-                          lottieCtrl.duration = const Duration(seconds: 2);
-                          lottieLoaded = true;
-                          _updateLottie();
-                        }
+                        lottieCtrl.duration = duration.inMilliseconds > 0
+                            ? duration
+                            : const Duration(seconds: 2);
+                        lottieLoaded = true;
+                        _updateLottie();
                       } catch (e) {
                         debugPrint('❌ Lottie onLoaded error: $e');
+                        lottieCtrl.duration = const Duration(seconds: 2);
+                        lottieLoaded = true;
+                        _updateLottie();
                       }
                     },
                   ),
                 ),
               ),
 
-              // Status dots (bottom-right)
               Positioned(
                 right: 20,
                 bottom: 28,
@@ -213,7 +209,6 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                 ),
               ),
 
-              // Top-right logout (minimal)
               Positioned(
                 top: 16,
                 right: 16,
@@ -227,7 +222,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white.withOpacity(0.1)),
                     ),
-                    child: Icon(Icons.logout, color: Colors.white38, size: 18),
+                    child: const Icon(Icons.logout, color: Colors.white38, size: 18),
                   ),
                 ),
               ),
@@ -243,7 +238,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     await _authService.logout();
     if (mounted) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => LoginScreen()),
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
     }
   }
