@@ -86,7 +86,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       await room!.connect(
         websocketUrl,
         token,
-        connectOptions: const ConnectOptions(autoSubscribe: false),
+        // FIX: autoSubscribe enabled so remote audio (June TTS) is audible
+        connectOptions: const ConnectOptions(autoSubscribe: true),
       );
 
       // Enable mic on connect
