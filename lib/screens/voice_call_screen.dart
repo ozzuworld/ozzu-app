@@ -151,7 +151,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     final minSide = math.min(safeWidth, safeHeight);
 
     final isTablet = media.size.shortestSide >= 600;
-    final baseFraction = isTablet ? 0.806 : 0.65; // researched defaults
+    final baseFraction = isTablet ? 0.806 : 0.65;
     final maxClamp = isTablet ? 1066.0 : 606.0;
 
     final lottieSize = (baseFraction * minSide).clamp(260.0, maxClamp);
@@ -229,7 +229,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                 ),
               ),
 
-              // Corner icons (kept off the Lottie)
+              // Corner icons
               Positioned(
                 top: 16,
                 right: 16,
