@@ -25,6 +25,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   bool isConnecting = false;
   String statusMessage = '';
 
+  // NEW: June-TTS speaking detection
+  bool isJuneSpeaking = false;
+  RemoteParticipant? juneParticipant;
+
   final String websocketUrl = 'wss://livekit.ozzu.world';
   final String tokenUrl = 'https://api.ozzu.world/api/livekit/token';
   final String roomName = 'ozzu-main';
@@ -32,6 +36,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   late final AnimationController lottieCtrl;
   bool lottieLoaded = false;
+
+  // NEW: Event listener for room events
+  late final EventsListener<RoomEvent> _roomListener;
 
   @override
   void initState() {
@@ -44,6 +51,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   @override
   void dispose() {
     lottieCtrl.dispose();
+    _roomListener.dispose();
     disconnectFromRoom();
     super.dispose();
   }
@@ -71,7 +79,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       if (data is Map<String, dynamic> && data['token'] != null) return data['token'];
       throw Exception('Token field not found in response');
     } else {
-      throw Exception('HTTP ${response.statusCode}: ${response.body}');
+      throw Exception('HTTP ${"${response.statusCode}"}: ${"${response.body}"}');
     }
   }
 
@@ -83,10 +91,15 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       final token = await getToken();
 
       room = Room(roomOptions: const RoomOptions(adaptiveStream: true, dynacast: true));
+
+      // NEW: Set up event listener using correct API
+      _roomListener = room!.createListener();
+      _setupRoomEventListeners();
+
       await room!.connect(
         websocketUrl,
         token,
-        connectOptions: const ConnectOptions(autoSubscribe: false),
+        connectOptions: const ConnectOptions(autoSubscribe: true),
       );
 
       // Enable mic on connect
@@ -99,7 +112,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         isConnecting = false;
         isMuted = false;
       });
+
       _updateLottie();
+      _scanForJuneParticipant();
+
     } catch (e) {
       debugPrint('❌ connect error: $e');
       setState(() {
@@ -111,11 +127,65 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     }
   }
 
+  void _setupRoomEventListeners() {
+    _roomListener
+      ..on<ParticipantConnectedEvent>((event) {
+        debugPrint('👋 Participant joined: ${"${event.participant.identity}"}');
+        _checkIfJuneParticipant(event.participant);
+      })
+      ..on<ActiveSpeakersChangedEvent>((event) {
+        final juneIsSpeaking = event.speakers.any((participant) => 
+          participant == juneParticipant);
+
+        if (juneIsSpeaking != isJuneSpeaking) {
+          setState(() {
+            isJuneSpeaking = juneIsSpeaking;
+          });
+          _updateLottie();
+          debugPrint('🗣️ June speaking: $isJuneSpeaking');
+        }
+      });
+  }
+
+  void _checkIfJuneParticipant(RemoteParticipant participant) {
+    final juneIdentities = ['june-tts', 'june_tts', 'June-TTS', 'June_TTS', 'tts', 'june'];
+
+    if (juneIdentities.any((identity) => 
+        participant.identity.toLowerCase().contains(identity.toLowerCase()))) {
+
+      debugPrint('🎤 Found June-TTS participant: ${"${participant.identity}"}');
+      juneParticipant = participant;
+
+      participant.addListener(() {
+        final wasSpeaking = isJuneSpeaking;
+        final nowSpeaking = participant.isSpeaking;
+
+        if (wasSpeaking != nowSpeaking) {
+          setState(() {
+            isJuneSpeaking = nowSpeaking;
+          });
+          _updateLottie();
+          debugPrint('🗣️ June speaking state changed: $nowSpeaking');
+        }
+      });
+    }
+  }
+
+  void _scanForJuneParticipant() {
+    if (room == null) return;
+
+    for (final participant in room!.remoteParticipants.values) {
+      _checkIfJuneParticipant(participant);
+    }
+  }
+
   Future<void> disconnectFromRoom() async {
     await room?.disconnect();
     setState(() {
       isConnected = false;
       isMuted = true;
+      isJuneSpeaking = false;
+      juneParticipant = null;
     });
     _updateLottie();
   }
@@ -124,17 +194,18 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     if (room?.localParticipant != null) {
       await room!.localParticipant!.setMicrophoneEnabled(isMuted);
       setState(() => isMuted = !isMuted);
-      _updateLottie();
     }
   }
 
   void _updateLottie() {
     if (!lottieLoaded) return;
     try {
-      if (isConnected && !isMuted) {
+      if (isConnected && isJuneSpeaking) {
         lottieCtrl..reset()..repeat();
+        debugPrint('🎵 Animation visible & playing - June speaking');
       } else {
         lottieCtrl.stop();
+        debugPrint('👻 Animation hidden - June silent');
       }
     } catch (e) {
       debugPrint('Lottie error: $e');
@@ -191,45 +262,39 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                         ),
                       ),
                     ),
-                    SizedBox(
-                      width: lottieSize,
-                      height: lottieSize,
-                      child: Lottie.asset(
-                        'assets/lottie/voice_button.json',
-                        controller: lottieCtrl,
-                        fit: BoxFit.contain,
-                        delegates: LottieDelegates(values: [
-                          // Bright layer - bright blue
-                          ValueDelegate.color(["Polygon 1", "**"], 
-                            value: const Color(0xFF3D7FFF)),
-                          
-                          // Dim layer - semi-transparent white
-                          ValueDelegate.color(["Polygon 1_1", "**"], 
-                            value: const Color(0x80FFFFFF)),
-                        ]),
-                        onLoaded: (comp) {
-                          try {
-                            final duration = comp.duration;
-                            // Make animation 50% slower (multiply by 1.5)
-                            lottieCtrl.duration = duration.inMilliseconds > 0
-                                ? Duration(milliseconds: (duration.inMilliseconds * 1.5).round())
-                                : const Duration(seconds: 3);
-                            lottieLoaded = true;
-                            _updateLottie();
-                          } catch (e) {
-                            debugPrint('❌ Lottie onLoaded error: $e');
-                            lottieCtrl.duration = const Duration(seconds: 3);
-                            lottieLoaded = true;
-                            _updateLottie();
-                          }
-                        },
+                    // MODIFIED: Use AnimatedOpacity to control visibility
+                    AnimatedOpacity(
+                      opacity: (isConnected && isJuneSpeaking) ? 1.0 : 0.0, // NEW: Invisible when not speaking
+                      duration: const Duration(milliseconds: 200), // Smooth fade in/out
+                      child: SizedBox(
+                        width: lottieSize,
+                        height: lottieSize,
+                        child: Lottie.asset(
+                          'assets/lottie/voice_button.json',
+                          controller: lottieCtrl,
+                          fit: BoxFit.contain,
+                          onLoaded: (comp) {
+                            try {
+                              final duration = comp.duration;
+                              lottieCtrl.duration = duration;
+                              lottieLoaded = true;
+                              _updateLottie();
+                              debugPrint('✅ Lottie loaded: ${"${duration.inMilliseconds}ms"}');
+                            } catch (e) {
+                              debugPrint('❌ Lottie onLoaded error: $e');
+                              lottieCtrl.duration = const Duration(seconds: 3);
+                              lottieLoaded = true;
+                              _updateLottie();
+                            }
+                          },
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
 
-              // Corner icons
+              // Corner icons  
               Positioned(
                 top: 16,
                 right: 16,
@@ -263,6 +328,13 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                       tooltip: isMuted ? 'Mic off' : 'Mic on',
                       color: isMuted ? Colors.red.shade300 : Colors.blue.shade300,
                       icon: isMuted ? Icons.mic_off : Icons.mic,
+                    ),
+                    const SizedBox(width: 10),
+                    // NEW: June speaking indicator
+                    _StatusDot(
+                      tooltip: isJuneSpeaking ? 'June is speaking' : 'June is silent',
+                      color: isJuneSpeaking ? Colors.blue.shade300 : Colors.grey.shade600,
+                      icon: Icons.record_voice_over,
                     ),
                   ],
                 ),
