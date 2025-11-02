@@ -194,28 +194,31 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                     SizedBox(
                       width: lottieSize,
                       height: lottieSize,
-                      delegates: LottieDelegates(values: [
-                        // Bright fog layer
-                        ValueDelegate.color(["Polygon 1", "**"], 
-                          value: const Color(0x70F0F8FF)),
-                        
-                        // Dim fog layer  
-                        ValueDelegate.color(["Polygon 1_1", "**"], 
-                          value: const Color(0x30D3D3D3)),
-                      ]),
-                          ],
-                        ),
+                      child: Lottie.asset(
+                        'assets/lottie/voice_button.json',
+                        controller: lottieCtrl,
+                        fit: BoxFit.contain,
+                        delegates: LottieDelegates(values: [
+                          // Bright layer - bright blue
+                          ValueDelegate.color(["Polygon 1", "**"], 
+                            value: const Color(0xFF3D7FFF)),
+                          
+                          // Dim layer - semi-transparent white
+                          ValueDelegate.color(["Polygon 1_1", "**"], 
+                            value: const Color(0x80FFFFFF)),
+                        ]),
                         onLoaded: (comp) {
                           try {
                             final duration = comp.duration;
+                            // Make animation 50% slower (multiply by 1.5)
                             lottieCtrl.duration = duration.inMilliseconds > 0
-                                ? duration
-                                : const Duration(seconds: 2);
+                                ? Duration(milliseconds: (duration.inMilliseconds * 1.5).round())
+                                : const Duration(seconds: 3);
                             lottieLoaded = true;
                             _updateLottie();
                           } catch (e) {
                             debugPrint('❌ Lottie onLoaded error: $e');
-                            lottieCtrl.duration = const Duration(seconds: 2);
+                            lottieCtrl.duration = const Duration(seconds: 3);
                             lottieLoaded = true;
                             _updateLottie();
                           }
