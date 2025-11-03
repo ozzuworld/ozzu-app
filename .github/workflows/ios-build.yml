@@ -1,0 +1,66 @@
+name: 🍎 iOS Build & Release
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'lib/**'
+      - 'ios/**' 
+      - 'pubspec.yaml'
+      - '.github/workflows/ios-build.yml'
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'testflight'
+        type: choice
+        options:
+          - testflight
+          - adhoc
+
+jobs:
+  build_ios:
+    name: 🏗️ Build iOS IPA  
+    runs-on: macos-latest
+    timeout-minutes: 60
+    
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: 🐦 Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.24.0'
+        cache: true
+        
+    - name: 📦 Get Flutter dependencies
+      run: flutter pub get
+      
+    - name: ✅ Flutter doctor
+      run: flutter doctor -v
+      
+    # Build iOS (works without Apple Developer Account)
+    - name: 🔨 Build iOS (No Code Sign)
+      run: |
+        flutter build ios --release --no-codesign
+        echo "✅ iOS build completed!"
+        echo "📱 Ready for Simulator testing"
+        
+    # Upload build artifacts  
+    - name: 📤 Upload iOS Build
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-build-${{ github.run_number }}
+        path: |
+          build/ios/iphoneos/Runner.app
+          build/ios/iphoneos/
+        retention-days: 30
+        
+    - name: 📢 Build Summary
+      run: |
+        echo "🏁 iOS Build Complete!"
+        echo "Build Number: ${{ github.run_number }}"
+        echo "Flutter Version: 3.24.0" 
+        echo "Status: SUCCESS ✅"
