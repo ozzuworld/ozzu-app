@@ -32,24 +32,34 @@ jobs:
     - name: ✅ Flutter doctor
       run: flutter doctor -v
 
-    - name: 🔨 Build iOS (No Code Sign)
+    - name: 🔨 Build device Runner.app via xcodebuild (no signing)
       run: |
-        flutter build ios --release --no-codesign
-        echo "✅ Runner.app built successfully"
+        cd ios
+        xcodebuild \
+          -workspace Runner.xcworkspace \
+          -scheme Runner \
+          -configuration Release \
+          -sdk iphoneos \
+          -derivedDataPath build \
+          CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGN_IDENTITY="" \
+          build
+        echo "✅ Built device Runner.app without signing"
 
     - name: 📱 Create IPA for AltStore
       run: |
-        cd build/ios/iphoneos/
+        cd ios/build/Build/Products/Release-iphoneos
         mkdir -p Payload
-        cp -r Runner.app Payload/
-        zip -r ozzu-app.ipa Payload/
+        cp -R Runner.app Payload/
+        zip -r ozzu-app.ipa Payload
         echo "✅ ozzu-app.ipa created for AltStore"
 
     - name: 📤 Upload IPA
       uses: actions/upload-artifact@v4
       with:
         name: ozzu-app-ipa-${{ github.run_number }}
-        path: build/ios/iphoneos/ozzu-app.ipa
+        path: ios/build/Build/Products/Release-iphoneos/ozzu-app.ipa
         retention-days: 30
 
     - name: 📢 Summary
