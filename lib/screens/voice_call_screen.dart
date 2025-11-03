@@ -30,7 +30,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   RemoteParticipant? juneParticipant;
 
   final String websocketUrl = 'wss://livekit.ozzu.world';
-  final String tokenUrl = 'https://api.ozzu.world/api/livekit/token';
+  final String tokenUrl = 'https://api.ozzu.world/token';
   final String roomName = 'ozzu-main';
   final String participantName = 'ozzu-app';
 
