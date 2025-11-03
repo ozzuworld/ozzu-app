@@ -29,26 +29,34 @@ jobs:
     - name: 📥 Checkout repository
       uses: actions/checkout@v4
       
-    - name: 🐦 Setup Flutter
+    - name: 🐦 Setup Flutter 3.16.9 (Dart 3.2)
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.16.9'
+        cache: true
+        
+    - name: 📦 Get Flutter dependencies
+      run: flutter pub get || true
+      
+    - name: 🔄 Switch Flutter to 3.24.0 (Dart 3.5) for build
       uses: subosito/flutter-action@v2
       with:
         flutter-version: '3.24.0'
         cache: true
-        
-    - name: 📦 Get Flutter dependencies
+        channel: 'stable'
+      
+    - name: 📦 Get Flutter dependencies (Dart 3.5)
       run: flutter pub get
       
     - name: ✅ Flutter doctor
       run: flutter doctor -v
       
-    # Build iOS (works without Apple Developer Account)
     - name: 🔨 Build iOS (No Code Sign)
       run: |
         flutter build ios --release --no-codesign
         echo "✅ iOS build completed!"
         echo "📱 Ready for Simulator testing"
         
-    # Upload build artifacts  
     - name: 📤 Upload iOS Build
       uses: actions/upload-artifact@v4
       with:
