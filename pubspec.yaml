@@ -15,6 +15,7 @@ dependencies:
   keycloak_wrapper: ^1.4.0
   permission_handler: ^11.3.1
   lottie: ^3.1.2
+  logger: ^2.4.0
 
 dev_dependencies:
   flutter_test:
