@@ -1,9 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:logger/logger.dart';
 import 'services/keycloak_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/voice_call_screen.dart';
 
+// Global logger for iOS debugging (visible via device logs)
+final Logger debugLogger = Logger(
+  printer: PrettyPrinter(
+    methodCount: 2,
+    errorMethodCount: 8,
+    lineLength: 120,
+    colors: true,
+    printEmojis: true,
+    printTime: true,
+  ),
+);
+
 void main() {
+  debugLogger.i('🚀 OZZU App Starting - iOS Debug Mode Active');
   runApp(const OzzuApp());
 }
 
@@ -38,31 +52,51 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
+    debugLogger.d('📱 AuthWrapper: Starting initialization...');
     _bootstrap();
   }
 
   Future<void> _bootstrap() async {
-    await _authService.initialize();
-    setState(() => _initialized = true);
+    try {
+      debugLogger.i('🔑 AuthService: Initializing Keycloak...');
+      await _authService.initialize();
+      debugLogger.i('✅ AuthService: Initialization complete');
+      
+      setState(() => _initialized = true);
 
-    // If already authenticated, go directly to voice chat.
-    if (_authService.isAuthenticated && mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const VoiceCallScreen(startUnmuted: true)),
-      );
+      // Debug authentication state
+      debugLogger.i('🔍 AuthService: Checking authentication status...');
+      debugLogger.i('🔍 AuthService: isAuthenticated = ${_authService.isAuthenticated}');
+      
+      // If already authenticated, go directly to voice chat.
+      if (_authService.isAuthenticated && mounted) {
+        debugLogger.i('✅ AuthService: User already authenticated - navigating to VoiceCall');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const VoiceCallScreen(startUnmuted: true)),
+        );
+      } else {
+        debugLogger.w('⚠️  AuthService: User not authenticated - showing LoginScreen');
+      }
+    } catch (e, stackTrace) {
+      debugLogger.e('❌ AuthService: Initialization failed', error: e, stackTrace: stackTrace);
+      setState(() => _initialized = true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_initialized) {
+      debugLogger.d('⏳ AuthWrapper: Showing loading screen...');
       return const Scaffold(
         backgroundColor: Colors.black,
         body: Center(child: CircularProgressIndicator()),
       );
     }
+    
+    debugLogger.d('🔑 AuthWrapper: Showing LoginScreen');
     // Show login first; after successful login, navigate to voice chat
     return LoginScreen(onLoggedIn: () {
+      debugLogger.i('🎉 LoginScreen: User logged in successfully - navigating to VoiceCall');
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const VoiceCallScreen(startUnmuted: true)),
       );

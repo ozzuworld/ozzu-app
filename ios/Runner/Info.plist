@@ -64,7 +64,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.example.livekit_voice_app</string>
+				<string>com.example.livekitvoiceapp</string>
 			</array>
 		</dict>
 	</array>
