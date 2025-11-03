@@ -12,7 +12,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   livekit_client: ^2.5.3
   http: ^1.2.2
-  keycloak_wrapper: ^1.4.6
+  keycloak_wrapper: ^1.4.4
   permission_handler: ^11.3.1
   lottie: ^3.1.2
 
