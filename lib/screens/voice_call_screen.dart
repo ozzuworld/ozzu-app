@@ -71,7 +71,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
             'Accept': 'application/json',
             if (accessToken != null) 'Authorization': 'Bearer $accessToken',
           },
-          body: json.encode({'service_identity': participantName}),
+          body: json.encode({'roomName': roomName, 'participantName': participantName}),
         )
         .timeout(const Duration(seconds: 30));
     if (response.statusCode == 200) {
