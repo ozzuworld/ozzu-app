@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 import 'services/keycloak_service.dart';
-import 'screens/login_screen.dart';
+import 'screens/welcome_screen.dart';
 import 'screens/voice_call_screen.dart';
 
 // Global logger for iOS debugging (visible via device logs)
@@ -75,7 +75,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           MaterialPageRoute(builder: (_) => const VoiceCallScreen(startUnmuted: true)),
         );
       } else {
-        debugLogger.w('⚠️  AuthService: User not authenticated - showing LoginScreen');
+        debugLogger.w('⚠️  AuthService: User not authenticated - showing WelcomeScreen');
       }
     } catch (e, stackTrace) {
       debugLogger.e('❌ AuthService: Initialization failed', error: e, stackTrace: stackTrace);
@@ -88,15 +88,30 @@ class _AuthWrapperState extends State<AuthWrapper> {
     if (!_initialized) {
       debugLogger.d('⏳ AuthWrapper: Showing loading screen...');
       return const Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator()),
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFFFF9A9E), // Light coral pink
+                Color(0xFFFAD0C4), // Peachy pink
+              ],
+            ),
+          ),
+          child: Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+        ),
       );
     }
     
-    debugLogger.d('🔑 AuthWrapper: Showing LoginScreen');
-    // Show login first; after successful login, navigate to voice chat
-    return LoginScreen(onLoggedIn: () {
-      debugLogger.i('🎉 LoginScreen: User logged in successfully - navigating to VoiceCall');
+    debugLogger.d('🎉 AuthWrapper: Showing WelcomeScreen');
+    // Show welcome screen first; after successful login, navigate to voice chat
+    return WelcomeScreen(onLoggedIn: () {
+      debugLogger.i('🎉 WelcomeScreen: User logged in successfully - navigating to VoiceCall');
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const VoiceCallScreen(startUnmuted: true)),
       );
