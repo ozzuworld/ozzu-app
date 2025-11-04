@@ -87,9 +87,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Widget build(BuildContext context) {
     if (!_initialized) {
       debugLogger.d('⏳ AuthWrapper: Showing loading screen...');
-      return const Scaffold(
+      return Scaffold(
         body: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
@@ -99,7 +99,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
               ],
             ),
           ),
-          child: Center(
+          child: const Center(
             child: CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
