@@ -96,7 +96,7 @@ class WelcomeScreen extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.waveform,
+                          Icons.graphic_eq,
                           size: 80,
                           color: Colors.white70,
                         ),
@@ -110,7 +110,7 @@ class WelcomeScreen extends StatelessWidget {
                         Icon(
                           Icons.headset_mic,
                           size: 50,
-                          color: Colors.white50,
+                          color: Color(0xB3FFFFFF), // Colors.white70 equivalent
                         ),
                       ],
                     ),
