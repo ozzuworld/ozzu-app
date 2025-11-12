@@ -52,8 +52,8 @@ class AuthService {
     // Set up error handling
     _kc!.onError = (message, error, stackTrace) {
       print('❌ Keycloak Error: $message');
-      if (error != null) print('Error details: $error');
-      if (stackTrace != null) print('Stack trace: $stackTrace');
+      print('Error details: $error');
+      print('Stack trace: $stackTrace');
     };
     
     // Initialize the wrapper

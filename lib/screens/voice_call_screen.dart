@@ -79,7 +79,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       if (data is Map<String, dynamic> && data['token'] != null) return data['token'];
       throw Exception('Token field not found in response');
     } else {
-      throw Exception('HTTP ${"${response.statusCode}"}: ${"${response.body}"}');
+      throw Exception('HTTP ${"${response.statusCode}"}: ${response.body}');
     }
   }
 
@@ -130,7 +130,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   void _setupRoomEventListeners() {
     _roomListener
       ..on<ParticipantConnectedEvent>((event) {
-        debugPrint('👋 Participant joined: ${"${event.participant.identity}"}');
+        debugPrint('👋 Participant joined: ${event.participant.identity}');
         _checkIfJuneParticipant(event.participant);
       })
       ..on<ActiveSpeakersChangedEvent>((event) {
@@ -153,7 +153,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     if (juneIdentities.any((identity) => 
         participant.identity.toLowerCase().contains(identity.toLowerCase()))) {
 
-      debugPrint('🎤 Found June-TTS participant: ${"${participant.identity}"}');
+      debugPrint('🎤 Found June-TTS participant: ${participant.identity}');
       juneParticipant = participant;
 
       participant.addListener(() {
