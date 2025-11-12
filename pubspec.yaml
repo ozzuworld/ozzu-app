@@ -27,6 +27,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/lottie/voice_button.json
+    - assets/lottie/login-button.json
     - assets/icon/app_icon.png
 
 flutter_icons:
