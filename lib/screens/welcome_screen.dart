@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../services/keycloak_service.dart';
 import '../main.dart';
 
@@ -11,44 +12,58 @@ class WelcomeScreen extends StatefulWidget {
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
-class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  bool _isAnimating = false;
-  bool _isLoggedIn = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this);
-    // Initially display the static frame
-    _controller.value = 0.0;
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+class _WelcomeScreenState extends State<WelcomeScreen> {
+  bool _isLoggingIn = false;
+  bool _showSuccessAnimation = false;
 
   Future<void> _handleLogin() async {
-    if (_isAnimating || _isLoggedIn) return; // Prevent double tap & replay
+    if (_isLoggingIn || _showSuccessAnimation) return;
+    
+    setState(() {
+      _isLoggingIn = true;
+    });
+
     final auth = AuthService();
+    
     try {
-      if (!auth.isAuthenticated) {
-        debugLogger.i('🔑 WelcomeScreen: Starting login');
-        await auth.login();
+      // If already authenticated, show animation then callback
+      if (auth.isAuthenticated) {
+        debugLogger.i('✅ WelcomeScreen: Already authenticated');
+        setState(() {
+          _showSuccessAnimation = true;
+        });
+        
+        await Future.delayed(const Duration(seconds: 2));
+        widget.onLoggedIn?.call();
+        return;
       }
-      setState(() => _isLoggedIn = true);
-      // Play animation once
-      setState(() => _isAnimating = true);
-      await _controller.animateTo(1.0, duration: const Duration(seconds: 3));
-      // After animation completes
+      
+      // Otherwise, trigger login and then show animation + callback
+      debugLogger.i('🔑 WelcomeScreen: Starting login');
+      await auth.login();
+      
+      debugLogger.i('✅ WelcomeScreen: Login successful');
+      setState(() {
+        _showSuccessAnimation = true;
+      });
+      
+      // Wait for animation to play
+      await Future.delayed(const Duration(seconds: 2));
+      
       widget.onLoggedIn?.call();
+      
     } catch (e) {
       debugLogger.e('❌ WelcomeScreen: Login failed', error: e);
+      setState(() {
+        _isLoggingIn = false;
+      });
+      
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Login failed: $e'), backgroundColor: Colors.red.shade900),
+          SnackBar(
+            content: Text('Login failed: $e'),
+            backgroundColor: Colors.red.shade900,
+          ),
         );
       }
     }
@@ -59,23 +74,54 @@ class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProvider
     return Scaffold(
       backgroundColor: Colors.black,
       body: Center(
-        child: GestureDetector(
-          onTap: _handleLogin,
-          child: Lottie.asset(
-            'assets/lottie/login-button.json',
-            controller: _controller,
-            onLoaded: (composition) {
-              _controller.duration = composition.duration;
-              if (!_isAnimating) {
-                // Show first frame for static state
-                _controller.value = 0.0;
-              }
-            },
-            repeat: false,
-            width: 200,
-            height: 200,
-            fit: BoxFit.contain,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // "Welcome to Ozzu" text in Audiowide font with silver color
+            Text(
+              'Welcome to Ozzu',
+              style: GoogleFonts.audiowide(
+                fontSize: 32,
+                color: const Color(0xFFC0C0C0), // Silver color
+                fontWeight: FontWeight.w400,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 60),
+            
+            // Show success animation after login, otherwise show button
+            if (_showSuccessAnimation)
+              SizedBox(
+                width: 200,
+                height: 200,
+                child: Lottie.asset(
+                  'assets/lottie/login-button.json',
+                  repeat: false,
+                ),
+              )
+            else
+              ElevatedButton(
+                onPressed: _isLoggingIn ? null : _handleLogin,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: _isLoggingIn
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text('Continue'),
+              ),
+          ],
         ),
       ),
     );

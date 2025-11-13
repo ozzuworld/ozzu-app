@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../services/keycloak_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -69,12 +70,11 @@ class _LoginScreenState extends State<LoginScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // "Welcome to Ozzu" text in Audiowide font with silver color
-            const Text(
+            Text(
               'Welcome to Ozzu',
-              style: TextStyle(
-                fontFamily: 'Audiowide',
+              style: GoogleFonts.audiowide(
                 fontSize: 32,
-                color: Color(0xFFC0C0C0), // Silver color
+                color: const Color(0xFFC0C0C0), // Silver color
                 fontWeight: FontWeight.w400,
                 letterSpacing: 1.2,
               ),
