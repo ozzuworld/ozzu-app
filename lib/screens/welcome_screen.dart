@@ -89,7 +89,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ),
             const SizedBox(height: 60),
             
-            // Show success animation after login, otherwise show button
+            // Show success animation after login, otherwise show lock button
             if (_showSuccessAnimation)
               SizedBox(
                 width: 200,
@@ -100,26 +100,16 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
               )
             else
-              ElevatedButton(
-                onPressed: _isLoggingIn ? null : _handleLogin,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              GestureDetector(
+                onTap: _isLoggingIn ? null : _handleLogin,
+                child: SizedBox(
+                  width: 150,
+                  height: 150,
+                  child: Lottie.asset(
+                    'assets/lottie/lock-button.json',
+                    fit: BoxFit.contain,
                   ),
                 ),
-                child: _isLoggingIn
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : const Text('Continue'),
               ),
           ],
         ),

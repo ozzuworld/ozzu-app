@@ -29,7 +29,9 @@ flutter:
   assets:
     - assets/lottie/voice_button.json
     - assets/lottie/login-button.json
+    - assets/lottie/lock-button.json
     - assets/icon/app_icon.png
+    
 
 flutter_icons:
   ios: true
