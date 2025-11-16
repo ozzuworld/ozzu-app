@@ -133,13 +133,15 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   }
 
   void _setupRoomEventListeners() {
-    _roomListener
+    if (_roomListener == null) return;
+
+    _roomListener!
       ..on<ParticipantConnectedEvent>((event) {
         debugPrint('👋 Participant joined: ${event.participant.identity}');
         _checkIfJuneParticipant(event.participant);
       })
       ..on<ActiveSpeakersChangedEvent>((event) {
-        final juneIsSpeaking = event.speakers.any((participant) => 
+        final juneIsSpeaking = event.speakers.any((participant) =>
           participant == juneParticipant);
 
         if (juneIsSpeaking != isJuneSpeaking) {
