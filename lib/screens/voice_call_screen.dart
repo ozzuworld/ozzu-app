@@ -360,7 +360,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
             const SizedBox(height: 8),
 
-            // Connection Status
+            // Connection - Tap to see all status details
             _buildMenuTile(
               icon: Icons.wifi,
               title: 'Connection',
@@ -370,32 +370,18 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
               statusColor: isConnected
                   ? Colors.greenAccent
                   : (isConnecting ? Colors.orangeAccent : Colors.redAccent),
-              onTap: () {
-                // Show detailed connection info
-                _showConnectionDetails();
-              },
+              onTap: _showConnectionDetails,
             ),
 
             const Divider(color: Colors.white12, height: 1),
 
-            // Microphone Status
+            // Media - New menu item for media controls
             _buildMenuTile(
-              icon: isMuted ? Icons.mic_off : Icons.mic,
-              title: 'Microphone',
-              subtitle: isMuted ? 'Muted' : 'Active',
-              statusColor: isMuted ? Colors.red.shade300 : Colors.blue.shade300,
-              onTap: toggleMute,
-            ),
-
-            const Divider(color: Colors.white12, height: 1),
-
-            // June Speaking Status
-            _buildMenuTile(
-              icon: Icons.record_voice_over,
-              title: 'June AI',
-              subtitle: isJuneSpeaking ? 'Speaking...' : 'Silent',
-              statusColor: isJuneSpeaking ? Colors.blue.shade300 : Colors.grey.shade600,
-              onTap: null,
+              icon: Icons.movie,
+              title: 'Media',
+              subtitle: 'Audio & Video settings',
+              statusColor: Colors.blueAccent,
+              onTap: _showMediaSettings,
             ),
 
             const Divider(color: Colors.white12, height: 1),
@@ -481,28 +467,176 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   }
 
   void _showConnectionDetails() {
-    final details = '''
-Status: ${isConnected ? 'Connected' : (isConnecting ? 'Connecting...' : 'Disconnected')}
-Room: $roomName
-Server: ${websocketUrl.replaceFirst('wss://', '')}
-Participant: $participantName
-${room != null ? 'Remote participants: ${room!.remoteParticipants.length}' : ''}
-''';
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          title: const Row(
+            children: [
+              Icon(Icons.wifi, color: Colors.white70),
+              SizedBox(width: 8),
+              Text('Connection Status', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Connection info
+                _buildDetailRow(
+                  icon: Icons.cloud,
+                  label: 'Status',
+                  value: isConnected
+                      ? 'Connected'
+                      : (isConnecting ? 'Connecting...' : 'Disconnected'),
+                  color: isConnected
+                      ? Colors.greenAccent
+                      : (isConnecting ? Colors.orangeAccent : Colors.redAccent),
+                ),
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                  icon: Icons.room,
+                  label: 'Room',
+                  value: roomName,
+                  color: Colors.white60,
+                ),
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                  icon: Icons.dns,
+                  label: 'Server',
+                  value: websocketUrl.replaceFirst('wss://', ''),
+                  color: Colors.white60,
+                ),
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                  icon: Icons.person,
+                  label: 'Participant',
+                  value: participantName,
+                  color: Colors.white60,
+                ),
+                if (room != null) ...[
+                  const SizedBox(height: 12),
+                  _buildDetailRow(
+                    icon: Icons.people,
+                    label: 'Remote participants',
+                    value: '${room!.remoteParticipants.length}',
+                    color: Colors.white60,
+                  ),
+                ],
 
+                const Divider(color: Colors.white24, height: 32),
+
+                // Microphone control
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    isMuted ? Icons.mic_off : Icons.mic,
+                    color: isMuted ? Colors.red.shade300 : Colors.blue.shade300,
+                  ),
+                  title: const Text(
+                    'Microphone',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                  ),
+                  subtitle: Text(
+                    isMuted ? 'Muted' : 'Active',
+                    style: const TextStyle(color: Colors.white60),
+                  ),
+                  trailing: Switch(
+                    value: !isMuted,
+                    onChanged: (value) async {
+                      await toggleMute();
+                      setDialogState(() {}); // Update dialog state
+                      setState(() {}); // Update main screen state
+                    },
+                    activeColor: Colors.blue.shade300,
+                  ),
+                ),
+
+                const Divider(color: Colors.white24, height: 24),
+
+                // June AI speaking status
+                _buildDetailRow(
+                  icon: Icons.record_voice_over,
+                  label: 'June AI',
+                  value: isJuneSpeaking ? 'Speaking...' : 'Silent',
+                  color: isJuneSpeaking ? Colors.blue.shade300 : Colors.grey.shade600,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showMediaSettings() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF2A2A2A),
         title: const Row(
           children: [
-            Icon(Icons.info_outline, color: Colors.white70),
+            Icon(Icons.movie, color: Colors.white70),
             SizedBox(width: 8),
-            Text('Connection Details', style: TextStyle(color: Colors.white)),
+            Text('Media Settings', style: TextStyle(color: Colors.white)),
           ],
         ),
-        content: Text(
-          details,
-          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.construction, color: Colors.white38, size: 48),
+            SizedBox(height: 16),
+            Text(
+              'Media settings coming soon',
+              style: TextStyle(color: Colors.white60),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
         actions: [
           TextButton(
