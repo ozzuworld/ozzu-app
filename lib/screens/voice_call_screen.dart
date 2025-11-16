@@ -41,7 +41,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   bool lottieLoaded = false;
 
   // NEW: Event listener for room events
-  late final EventsListener<RoomEvent> _roomListener;
+  EventsListener<RoomEvent>? _roomListener;
 
   @override
   void initState() {
@@ -54,7 +54,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   @override
   void dispose() {
     lottieCtrl.dispose();
-    _roomListener.dispose();
+    _roomListener?.dispose();
     disconnectFromRoom();
     super.dispose();
   }
@@ -96,6 +96,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       room = Room(roomOptions: const RoomOptions(adaptiveStream: true, dynacast: true));
 
       // NEW: Set up event listener using correct API
+      // Dispose old listener if exists
+      _roomListener?.dispose();
       _roomListener = room!.createListener();
       _setupRoomEventListeners();
 
