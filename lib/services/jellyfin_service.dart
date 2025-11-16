@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:logger/logger.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'keycloak_service.dart';
 
 class JellyfinService {
   static final JellyfinService _instance = JellyfinService._internal();
@@ -10,6 +12,7 @@ class JellyfinService {
 
   final Logger _logger = Logger();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final AuthService _authService = AuthService();
 
   final String baseUrl = 'https://tv.ozzu.world';
   String? _accessToken;
