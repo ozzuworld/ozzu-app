@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../services/jellyfin_service.dart';
@@ -18,6 +19,7 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
   final JellyseerrService _jellyseerrService = JellyseerrService();
 
   bool _isLoading = true;
+  String? _errorMessage;
   List<dynamic> _recentlyAdded = [];
   List<dynamic> _trendingMovies = [];
   List<dynamic> _trendingTV = [];
@@ -32,47 +34,85 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
   }
 
   Future<void> _initialize() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-    // Authenticate with both services
-    await _jellyfinService.authenticate('hadmin', 'Pokemon123!');
-    await _jellyseerrService.login('hadmin', 'Pokemon123!');
+    try {
+      // Authenticate with both services
+      final jellyfinAuth = await _jellyfinService.authenticate('hadmin', 'Pokemon123!');
 
-    // Load content from both services
-    await Future.wait([
-      _loadJellyfinContent(),
-      _loadJellyseerrContent(),
-    ]);
+      if (!jellyfinAuth) {
+        setState(() {
+          _errorMessage = 'Failed to authenticate with Jellyfin';
+          _isLoading = false;
+        });
+        return;
+      }
 
-    setState(() => _isLoading = false);
+      // On web, skip Jellyseerr due to CORS issues
+      if (!kIsWeb) {
+        await _jellyseerrService.login('hadmin', 'Pokemon123!');
+      }
+
+      // Load content from Jellyfin
+      await _loadJellyfinContent();
+
+      // Load Jellyseerr content (only on mobile)
+      if (!kIsWeb) {
+        await _loadJellyseerrContent();
+      }
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      debugPrint('Error initializing TV browse: $e');
+      setState(() {
+        _errorMessage = 'Failed to load content. Please try again.';
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _loadJellyfinContent() async {
-    final results = await Future.wait([
-      _jellyfinService.getRecentlyAdded(),
-      _jellyfinService.getMovies(),
-      _jellyfinService.getTVShows(),
-    ]);
+    try {
+      final results = await Future.wait([
+        _jellyfinService.getRecentlyAdded(),
+        _jellyfinService.getMovies(),
+        _jellyfinService.getTVShows(),
+      ]);
 
-    setState(() {
-      _recentlyAdded = results[0];
-      _movies = results[1];
-      _tvShows = results[2];
-    });
+      if (mounted) {
+        setState(() {
+          _recentlyAdded = results[0];
+          _movies = results[1];
+          _tvShows = results[2];
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading Jellyfin content: $e');
+    }
   }
 
   Future<void> _loadJellyseerrContent() async {
-    final results = await Future.wait([
-      _jellyseerrService.getTrendingMovies(),
-      _jellyseerrService.getTrendingTV(),
-      _jellyseerrService.getPopularMovies(),
-    ]);
+    try {
+      final results = await Future.wait([
+        _jellyseerrService.getTrendingMovies(),
+        _jellyseerrService.getTrendingTV(),
+        _jellyseerrService.getPopularMovies(),
+      ]);
 
-    setState(() {
-      _trendingMovies = results[0];
-      _trendingTV = results[1];
-      _popularMovies = results[2];
-    });
+      if (mounted) {
+        setState(() {
+          _trendingMovies = results[0];
+          _trendingTV = results[1];
+          _popularMovies = results[2];
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading Jellyseerr content: $e');
+      // Non-fatal: Continue with Jellyfin content only
+    }
   }
 
   @override
@@ -108,18 +148,20 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
       ),
       body: _isLoading
           ? _buildLoadingState()
-          : RefreshIndicator(
-              onRefresh: _initialize,
-              backgroundColor: Colors.black.withOpacity(0.8),
-              color: Colors.white,
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  // Featured/Hero section
-                  if (_recentlyAdded.isNotEmpty)
-                    _buildFeaturedSection(_recentlyAdded.first),
+          : _errorMessage != null
+              ? _buildErrorState()
+              : RefreshIndicator(
+                  onRefresh: _initialize,
+                  backgroundColor: Colors.black.withOpacity(0.8),
+                  color: Colors.white,
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      // Featured/Hero section
+                      if (_recentlyAdded.isNotEmpty)
+                        _buildFeaturedSection(_recentlyAdded.first),
 
-                  const SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
                   // Recently Added
                   if (_recentlyAdded.isNotEmpty)
@@ -186,6 +228,38 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
           Text(
             'Loading content...',
             style: TextStyle(color: Colors.white.withOpacity(0.7)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            color: Colors.white.withOpacity(0.5),
+            size: 64,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            _errorMessage ?? 'An error occurred',
+            style: TextStyle(color: Colors.white.withOpacity(0.7)),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: _initialize,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
           ),
         ],
       ),
