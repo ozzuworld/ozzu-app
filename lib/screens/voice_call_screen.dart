@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:livekit_client/livekit_client.dart';
@@ -19,7 +20,7 @@ class VoiceCallScreen extends StatefulWidget {
 class _VoiceCallScreenState extends State<VoiceCallScreen>
     with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _showMenu = false;
   Room? room;
   bool isConnected = false;
   bool isMuted = true;
@@ -243,9 +244,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         }
       },
       child: Scaffold(
-        key: _scaffoldKey,
         backgroundColor: Colors.black,
-        drawer: _buildDrawer(),
         body: SafeArea(
           child: Stack(
             children: [
@@ -267,8 +266,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                     ),
                     // MODIFIED: Use AnimatedOpacity to control visibility
                     AnimatedOpacity(
-                      opacity: (isConnected && isJuneSpeaking) ? 1.0 : 0.0, // NEW: Invisible when not speaking
-                      duration: const Duration(milliseconds: 200), // Smooth fade in/out
+                      opacity: (isConnected && isJuneSpeaking) ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 200),
                       child: SizedBox(
                         width: lottieSize,
                         height: lottieSize,
@@ -297,21 +296,53 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                 ),
               ),
 
-              // Menu icon in top left
+              // Minimalist menu overlay
+              if (_showMenu)
+                GestureDetector(
+                  onTap: () => setState(() => _showMenu = false),
+                  child: Container(
+                    color: Colors.black.withOpacity(0.3),
+                  ),
+                ),
+
+              // Compact glass menu
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                top: 16,
+                left: _showMenu ? 16 : -250,
+                child: _buildGlassMenu(),
+              ),
+
+              // Menu toggle button
               Positioned(
                 top: 16,
                 left: 16,
                 child: GestureDetector(
-                  onTap: () => _scaffoldKey.currentState?.openDrawer(),
+                  onTap: () => setState(() => _showMenu = !_showMenu),
                   child: Container(
-                    width: 48,
-                    height: 48,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
+                      color: Colors.white.withOpacity(0.08),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withOpacity(0.15)),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
                     ),
-                    child: const Icon(Icons.menu, color: Colors.white70, size: 24),
+                    child: Icon(
+                      _showMenu ? Icons.close : Icons.menu,
+                      color: Colors.white.withOpacity(0.9),
+                      size: 22,
+                    ),
                   ),
                 ),
               ),
@@ -322,164 +353,149 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     );
   }
 
-  Widget _buildDrawer() {
-    return Drawer(
-      backgroundColor: const Color(0xFF1A1A1A),
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.purple.withOpacity(0.3),
-                    Colors.blue.withOpacity(0.3),
-                  ],
-                ),
+  Widget _buildGlassMenu() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          width: 220,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 20,
+                spreadRadius: 5,
               ),
-              child: const Row(
-                children: [
-                  Icon(Icons.settings, color: Colors.white70, size: 28),
-                  SizedBox(width: 12),
-                  Text(
-                    'Menu',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Connection
+              _buildGlassMenuItem(
+                icon: Icons.wifi,
+                label: 'Connection',
+                statusColor: isConnected
+                    ? Colors.greenAccent
+                    : (isConnecting ? Colors.orangeAccent : Colors.redAccent),
+                onTap: () {
+                  setState(() => _showMenu = false);
+                  _showConnectionDetails();
+                },
               ),
-            ),
 
-            const SizedBox(height: 8),
+              Divider(color: Colors.white.withOpacity(0.1), height: 1),
 
-            // Connection - Tap to see all status details
-            _buildMenuTile(
-              icon: Icons.wifi,
-              title: 'Connection',
-              subtitle: isConnected
-                  ? 'Connected to room'
-                  : (isConnecting ? 'Connecting...' : 'Disconnected'),
-              statusColor: isConnected
-                  ? Colors.greenAccent
-                  : (isConnecting ? Colors.orangeAccent : Colors.redAccent),
-              onTap: _showConnectionDetails,
-            ),
-
-            const Divider(color: Colors.white12, height: 1),
-
-            // Media - New menu item for media controls
-            _buildMenuTile(
-              icon: Icons.movie,
-              title: 'Media',
-              subtitle: 'Audio & Video settings',
-              statusColor: Colors.blueAccent,
-              onTap: _showMediaSettings,
-            ),
-
-            const Divider(color: Colors.white12, height: 1),
-
-            const Spacer(),
-
-            // Logout button
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _logout,
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Logout'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.withOpacity(0.2),
-                    foregroundColor: Colors.redAccent,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.redAccent.withOpacity(0.3)),
-                    ),
-                  ),
-                ),
+              // Media
+              _buildGlassMenuItem(
+                icon: Icons.movie,
+                label: 'Media',
+                statusColor: Colors.blueAccent,
+                onTap: () {
+                  setState(() => _showMenu = false);
+                  _showMediaSettings();
+                },
               ),
-            ),
-          ],
+
+              Divider(color: Colors.white.withOpacity(0.1), height: 1),
+
+              // Logout
+              _buildGlassMenuItem(
+                icon: Icons.logout,
+                label: 'Logout',
+                statusColor: Colors.redAccent,
+                onTap: () {
+                  setState(() => _showMenu = false);
+                  _logout();
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildMenuTile({
+  Widget _buildGlassMenuItem({
     required IconData icon,
-    required String title,
-    required String subtitle,
+    required String label,
     required Color statusColor,
-    VoidCallback? onTap,
+    required VoidCallback onTap,
   }) {
-    return ListTile(
-      leading: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          shape: BoxShape.circle,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.white.withOpacity(0.9), size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.95),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: statusColor.withOpacity(0.6),
+                      blurRadius: 6,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        child: Icon(icon, color: Colors.white70),
       ),
-      title: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: TextStyle(
-          color: Colors.white60,
-          fontSize: 14,
-        ),
-      ),
-      trailing: Container(
-        width: 12,
-        height: 12,
-        decoration: BoxDecoration(
-          color: statusColor,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: statusColor.withOpacity(0.5),
-              blurRadius: 8,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-      ),
-      onTap: onTap,
     );
   }
 
   void _showConnectionDetails() {
     showDialog(
       context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF2A2A2A),
-          title: const Row(
-            children: [
-              Icon(Icons.wifi, color: Colors.white70),
-              SizedBox(width: 8),
-              Text('Connection Status', style: TextStyle(color: Colors.white)),
-            ],
-          ),
-          content: SingleChildScrollView(
+        builder: (context, setDialogState) => BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: AlertDialog(
+            backgroundColor: Colors.black.withOpacity(0.7),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+              side: BorderSide(color: Colors.white.withOpacity(0.2), width: 1),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.wifi, color: Colors.white.withOpacity(0.9)),
+                const SizedBox(width: 12),
+                const Text(
+                  'Connection',
+                  style: TextStyle(color: Colors.white, fontSize: 20),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -566,12 +582,16 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.blueAccent,
+                ),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -617,33 +637,47 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   void _showMediaSettings() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        title: const Row(
-          children: [
-            Icon(Icons.movie, color: Colors.white70),
-            SizedBox(width: 8),
-            Text('Media Settings', style: TextStyle(color: Colors.white)),
-          ],
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.construction, color: Colors.white38, size: 48),
-            SizedBox(height: 16),
-            Text(
-              'Media settings coming soon',
-              style: TextStyle(color: Colors.white60),
-              textAlign: TextAlign.center,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: AlertDialog(
+          backgroundColor: Colors.black.withOpacity(0.7),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(color: Colors.white.withOpacity(0.2), width: 1),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.movie, color: Colors.white.withOpacity(0.9)),
+              const SizedBox(width: 12),
+              const Text(
+                'Media',
+                style: TextStyle(color: Colors.white, fontSize: 20),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.construction, color: Colors.white.withOpacity(0.4), size: 48),
+              const SizedBox(height: 16),
+              Text(
+                'Media settings coming soon',
+                style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blueAccent,
+              ),
+              child: const Text('Close'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }
