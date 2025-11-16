@@ -14,15 +14,15 @@ class JellyseerrService {
   final String baseUrl = 'https://requests.ozzu.world';
   String? _sessionCookie;
 
-  // Login to get session cookie
-  Future<bool> login(String email, String password) async {
+  // Login to get session cookie using Jellyfin authentication
+  Future<bool> login(String username, String password) async {
     try {
-      _logger.i('🔑 Attempting Jellyseerr login...');
+      _logger.i('🔑 Attempting Jellyseerr login via Jellyfin auth...');
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/local'),
+        Uri.parse('$baseUrl/auth/jellyfin'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'email': email,
+          'username': username,
           'password': password,
         }),
       );
