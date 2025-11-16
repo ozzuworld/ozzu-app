@@ -164,71 +164,7 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
           ? _buildLoadingState()
           : _errorMessage != null
               ? _buildErrorState()
-              : RefreshIndicator(
-                  onRefresh: _initialize,
-                  backgroundColor: Colors.black.withOpacity(0.8),
-                  color: Colors.white,
-                  child: ListView(
-                    padding: EdgeInsets.zero,
-                    children: [
-                      // Featured/Hero section
-                      if (_recentlyAdded.isNotEmpty)
-                        _buildFeaturedSection(_recentlyAdded.first),
-
-                      const SizedBox(height: 20),
-
-                  // Recently Added
-                  if (_recentlyAdded.isNotEmpty)
-                    _buildContentRow(
-                      'Recently Added',
-                      _recentlyAdded,
-                      isJellyfin: true,
-                    ),
-
-                  // Trending Movies
-                  if (_trendingMovies.isNotEmpty)
-                    _buildContentRow(
-                      'Trending Movies',
-                      _trendingMovies,
-                      isJellyfin: false,
-                    ),
-
-                  // Trending TV Shows
-                  if (_trendingTV.isNotEmpty)
-                    _buildContentRow(
-                      'Trending TV Shows',
-                      _trendingTV,
-                      isJellyfin: false,
-                    ),
-
-                  // Popular Movies
-                  if (_popularMovies.isNotEmpty)
-                    _buildContentRow(
-                      'Popular Movies',
-                      _popularMovies,
-                      isJellyfin: false,
-                    ),
-
-                  // All Movies
-                  if (_movies.isNotEmpty)
-                    _buildContentRow(
-                      'Movies',
-                      _movies,
-                      isJellyfin: true,
-                    ),
-
-                  // All TV Shows
-                  if (_tvShows.isNotEmpty)
-                    _buildContentRow(
-                      'TV Shows',
-                      _tvShows,
-                      isJellyfin: true,
-                    ),
-
-                  const SizedBox(height: 40),
-                ],
-              ),
-            ),
+              : _buildContentBody(),
     );
   }
 
@@ -275,6 +211,76 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContentBody() {
+    return RefreshIndicator(
+      onRefresh: _initialize,
+      color: Colors.blueAccent,
+      child: ListView(
+        children: [
+          const SizedBox(height: 100), // Padding for transparent AppBar
+
+          // Featured section (if we have any content)
+          if (_recentlyAdded.isNotEmpty)
+            _buildFeaturedSection(_recentlyAdded.first),
+
+          const SizedBox(height: 20),
+
+          // Recently Added category
+          _buildContentRow(
+            'Recently Added',
+            _recentlyAdded,
+            isJellyfin: true,
+          ),
+          const SizedBox(height: 20),
+
+          // Trending Movies category (from Jellyseerr)
+          if (!kIsWeb)
+            _buildContentRow(
+              'Trending Movies',
+              _trendingMovies,
+              isJellyfin: false,
+            ),
+          if (!kIsWeb) const SizedBox(height: 20),
+
+          // Trending TV category (from Jellyseerr)
+          if (!kIsWeb)
+            _buildContentRow(
+              'Trending TV Shows',
+              _trendingTV,
+              isJellyfin: false,
+            ),
+          if (!kIsWeb) const SizedBox(height: 20),
+
+          // Popular Movies category (from Jellyseerr)
+          if (!kIsWeb)
+            _buildContentRow(
+              'Popular Movies',
+              _popularMovies,
+              isJellyfin: false,
+            ),
+          if (!kIsWeb) const SizedBox(height: 20),
+
+          // Movies category (from Jellyfin)
+          _buildContentRow(
+            'Movies',
+            _movies,
+            isJellyfin: true,
+          ),
+          const SizedBox(height: 20),
+
+          // TV Shows category (from Jellyfin)
+          _buildContentRow(
+            'TV Shows',
+            _tvShows,
+            isJellyfin: true,
+          ),
+
+          const SizedBox(height: 40),
         ],
       ),
     );
@@ -388,33 +394,93 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
   }
 
   Widget _buildContentRow(String title, List<dynamic> items, {required bool isJellyfin}) {
+    // If empty, show placeholder cards to demonstrate the UI
+    final displayItems = items.isEmpty ? List.filled(5, null) : items;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          child: Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+          child: Row(
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 10),
+              if (items.isEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Empty',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.5),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         SizedBox(
           height: 180,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final item = items[index];
-              return _buildContentCard(item, isJellyfin);
-            },
-          ),
+          child: items.isEmpty
+              ? _buildEmptyRow()
+              : ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return _buildContentCard(item, isJellyfin);
+                  },
+                ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEmptyRow() {
+    return ListView.builder(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: 5, // Show 5 placeholder cards
+      itemBuilder: (context, index) {
+        return _buildPlaceholderCard();
+      },
+    );
+  }
+
+  Widget _buildPlaceholderCard() {
+    return Container(
+      width: 120,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Shimmer.fromColors(
+          baseColor: Colors.grey[900]!,
+          highlightColor: Colors.grey[800]!,
+          child: Container(
+            color: Colors.grey[900],
+            child: Center(
+              child: Icon(
+                Icons.movie_outlined,
+                color: Colors.white.withOpacity(0.1),
+                size: 40,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
