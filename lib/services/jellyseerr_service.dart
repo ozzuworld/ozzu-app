@@ -71,18 +71,25 @@ class JellyseerrService {
   // Get trending movies
   Future<List<dynamic>> getTrendingMovies() async {
     try {
+      _logger.i('🔥 Fetching trending movies from Jellyseerr...');
       final response = await http.get(
         Uri.parse('$baseUrl/api/v1/discover/movies/trending'),
         headers: _getHeaders(),
       );
 
+      _logger.i('🔥 Trending movies response: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['results'] ?? [];
+        final results = data['results'] ?? [];
+        _logger.i('🔥 Found ${results.length} trending movies');
+        return results;
       }
+      _logger.w('🔥 Failed to fetch trending movies: ${response.statusCode}');
+      _logger.w('Response: ${response.body}');
       return [];
     } catch (e) {
-      _logger.e('Error fetching trending movies: $e');
+      _logger.e('❌ Error fetching trending movies: $e');
       return [];
     }
   }
