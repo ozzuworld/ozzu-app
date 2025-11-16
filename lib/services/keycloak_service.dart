@@ -1,4 +1,5 @@
 import 'package:keycloak_wrapper/keycloak_wrapper.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -13,7 +14,7 @@ class AuthService {
 
   // Create KeycloakWrapper instance with config
   KeycloakWrapper? _kc;
-  
+
   bool _initialized = false;
   bool _authenticated = false;
   Map<String, dynamic>? _userInfo;
@@ -22,7 +23,7 @@ class AuthService {
   bool get isInitialized => _initialized;
   bool get isAuthenticated => _authenticated;
   Map<String, dynamic>? get userInfo => _userInfo;
-  
+
   String get displayName {
     if (_userInfo != null) {
       return (_userInfo!['name'] ??
@@ -32,11 +33,25 @@ class AuthService {
     }
     return 'User';
   }
-  
+
   String get userEmail => (_userInfo?['email'] ?? 'No email').toString();
 
   Future<void> initialize() async {
     if (_initialized) return;
+
+    // Skip Keycloak initialization on web (not supported)
+    if (kIsWeb) {
+      print('⚠️ Running on web - Keycloak OAuth not supported. Using mock auth.');
+      _initialized = true;
+      _authenticated = true; // Auto-authenticate on web for development
+      _userInfo = {
+        'name': 'Web User',
+        'preferred_username': 'webuser',
+        'email': 'web@ozzu.world'
+      };
+      print('✅ Web mock auth initialized');
+      return;
+    }
 
     // Create KeycloakConfig
     final config = KeycloakConfig(
@@ -48,22 +63,22 @@ class AuthService {
 
     // Initialize KeycloakWrapper with config
     _kc = KeycloakWrapper(config: config);
-    
+
     // Set up error handling
     _kc!.onError = (message, error, stackTrace) {
       print('❌ Keycloak Error: $message');
       print('Error details: $error');
       print('Stack trace: $stackTrace');
     };
-    
+
     // Initialize the wrapper
     _kc!.initialize();
-    
+
     // Listen to authentication stream
     _kc!.authenticationStream.listen((isAuthed) async {
       print('🔐 Authentication state changed: $isAuthed');
       _authenticated = isAuthed;
-      
+
       if (isAuthed && _kc != null) {
         try {
           _userInfo = await _kc!.getUserInfo();
@@ -82,19 +97,26 @@ class AuthService {
   }
 
   Future<bool> login() async {
+    // On web, skip OAuth and return success
+    if (kIsWeb) {
+      print('✅ Web login - automatically authenticated');
+      _authenticated = true;
+      return true;
+    }
+
     if (_kc == null) {
       print('❌ Login failed: KeycloakWrapper not initialized. Call initialize() first.');
       return false;
     }
-    
+
     try {
       print('🔑 Attempting login...');
       final success = await _kc!.login();
-      
+
       if (success) {
         print('✅ Login successful');
         _authenticated = true;
-        
+
         // Fetch user info after successful login
         try {
           _userInfo = await _kc!.getUserInfo();
@@ -106,7 +128,7 @@ class AuthService {
         print('❌ Login failed');
         _authenticated = false;
       }
-      
+
       return success;
     } catch (e) {
       print('❌ Login error: $e');
@@ -116,13 +138,21 @@ class AuthService {
   }
 
   Future<void> logout() async {
+    // On web, just clear state
+    if (kIsWeb) {
+      print('👋 Web logout');
+      _userInfo = null;
+      _authenticated = false;
+      return;
+    }
+
     if (_kc == null) {
       print('⚠️ Logout called but KeycloakWrapper not initialized');
       _userInfo = null;
       _authenticated = false;
       return;
     }
-    
+
     try {
       print('👋 Attempting logout...');
       await _kc!.logout();
@@ -138,11 +168,16 @@ class AuthService {
   }
 
   Future<String?> getAccessToken() async {
+    // On web, return null (services will handle this)
+    if (kIsWeb) {
+      return null;
+    }
+
     if (_kc == null) {
       print('⚠️ getAccessToken called but KeycloakWrapper not initialized');
       return null;
     }
-    
+
     try {
       return _kc!.accessToken;
     } catch (e) {
@@ -150,7 +185,7 @@ class AuthService {
       return null;
     }
   }
-  
-  String? get idToken => _kc?.idToken;
-  String? get refreshToken => _kc?.refreshToken;
+
+  String? get idToken => kIsWeb ? null : _kc?.idToken;
+  String? get refreshToken => kIsWeb ? null : _kc?.refreshToken;
 }
