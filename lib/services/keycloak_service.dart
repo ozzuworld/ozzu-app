@@ -39,17 +39,13 @@ class AuthService {
   Future<void> initialize() async {
     if (_initialized) return;
 
-    // Skip Keycloak initialization on web (not supported)
+    // On web, initialize but don't auto-authenticate
     if (kIsWeb) {
       print('⚠️ Running on web - Keycloak OAuth not supported. Using mock auth.');
       _initialized = true;
-      _authenticated = true; // Auto-authenticate on web for development
-      _userInfo = {
-        'name': 'Web User',
-        'preferred_username': 'webuser',
-        'email': 'web@ozzu.world'
-      };
-      print('✅ Web mock auth initialized');
+      _authenticated = false; // Don't auto-authenticate - let user go through login flow
+      _userInfo = null;
+      print('✅ Web mock auth initialized (not authenticated yet)');
       return;
     }
 
@@ -97,10 +93,15 @@ class AuthService {
   }
 
   Future<bool> login() async {
-    // On web, skip OAuth and return success
+    // On web, skip OAuth but set authenticated state and user info
     if (kIsWeb) {
-      print('✅ Web login - automatically authenticated');
+      print('✅ Web login - simulating authentication');
       _authenticated = true;
+      _userInfo = {
+        'name': 'Web User',
+        'preferred_username': 'webuser',
+        'email': 'web@ozzu.world'
+      };
       return true;
     }
 
