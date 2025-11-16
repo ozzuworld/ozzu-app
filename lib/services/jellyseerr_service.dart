@@ -12,13 +12,14 @@ class JellyseerrService {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   final String baseUrl = 'https://requests.ozzu.world';
-  String? _apiKey;
+  String? _sessionCookie;
 
-  // Login to get API key
+  // Login to get session cookie
   Future<bool> login(String email, String password) async {
     try {
+      _logger.i('🔑 Attempting Jellyseerr login...');
       final response = await http.post(
-        Uri.parse('$baseUrl/api/v1/auth/local'),
+        Uri.parse('$baseUrl/auth/local'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': email,
@@ -26,17 +27,26 @@ class JellyseerrService {
         }),
       );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        _apiKey = data['token'] ?? data['apiKey'];
+      _logger.i('📡 Jellyseerr response: ${response.statusCode}');
 
-        if (_apiKey != null) {
-          await _storage.write(key: 'jellyseerr_api_key', value: _apiKey);
+      if (response.statusCode == 200) {
+        // Extract session cookie from response headers
+        final setCookie = response.headers['set-cookie'];
+        if (setCookie != null) {
+          // Parse the cookie - typically in format: "connect.sid=xxx; Path=/; HttpOnly"
+          _sessionCookie = setCookie.split(';')[0];
+          await _storage.write(key: 'jellyseerr_session', value: _sessionCookie);
           _logger.i('✅ Jellyseerr authentication successful');
+          _logger.i('🍪 Session cookie: ${_sessionCookie?.substring(0, 20)}...');
           return true;
+        } else {
+          _logger.w('⚠️ No session cookie found in response headers');
+          _logger.w('Headers: ${response.headers}');
         }
+      } else {
+        _logger.e('❌ Jellyseerr auth failed: ${response.statusCode}');
+        _logger.e('Response body: ${response.body}');
       }
-      _logger.e('❌ Jellyseerr auth failed: ${response.statusCode}');
       return false;
     } catch (e) {
       _logger.e('❌ Jellyseerr auth error: $e');
@@ -44,17 +54,17 @@ class JellyseerrService {
     }
   }
 
-  // Load saved API key
-  Future<bool> loadSavedApiKey() async {
-    _apiKey = await _storage.read(key: 'jellyseerr_api_key');
-    return _apiKey != null;
+  // Load saved session cookie
+  Future<bool> loadSavedSession() async {
+    _sessionCookie = await _storage.read(key: 'jellyseerr_session');
+    return _sessionCookie != null;
   }
 
-  // Get headers with API key
+  // Get headers with session cookie
   Map<String, String> _getHeaders() {
     return {
       'Content-Type': 'application/json',
-      if (_apiKey != null) 'X-Api-Key': _apiKey!,
+      if (_sessionCookie != null) 'Cookie': _sessionCookie!,
     };
   }
 
@@ -197,7 +207,7 @@ class JellyseerrService {
 
   // Logout
   Future<void> logout() async {
-    await _storage.delete(key: 'jellyseerr_api_key');
-    _apiKey = null;
+    await _storage.delete(key: 'jellyseerr_session');
+    _sessionCookie = null;
   }
 }
