@@ -19,7 +19,7 @@ class JellyseerrService {
     try {
       _logger.i('🔑 Attempting Jellyseerr login via Jellyfin auth...');
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/jellyfin'),
+        Uri.parse('$baseUrl/api/v1/auth/jellyfin'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'username': username,

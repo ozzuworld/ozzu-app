@@ -9,8 +9,10 @@ https://requests.ozzu.world
 
 ## Authentication Endpoints
 
+**IMPORTANT:** All authentication endpoints require the `/api/v1` prefix.
+
 ### 1. Local Authentication
-**Endpoint:** `POST /auth/local`
+**Endpoint:** `POST /api/v1/auth/local`
 **Description:** Authenticate using Jellyseerr local account credentials
 **Request Body:**
 ```json
@@ -20,12 +22,14 @@ https://requests.ozzu.world
 }
 ```
 **Response:** User object + session cookie
+**Error Responses:**
+- `403` - Access denied (endpoint may be disabled)
 
 ---
 
-### 2. Jellyfin Authentication
-**Endpoint:** `POST /auth/jellyfin`
-**Description:** Authenticate using Jellyfin credentials (used in this app)
+### 2. Jellyfin Authentication ⭐ (Used in this app)
+**Endpoint:** `POST /api/v1/auth/jellyfin`
+**Description:** Authenticate using Jellyfin credentials
 **Request Body:**
 ```json
 {
@@ -35,12 +39,15 @@ https://requests.ozzu.world
   "email": "optional"
 }
 ```
-**Response:** User object + session cookie (set-cookie header)
+**Response:** User object + session cookie (set-cookie header: `connect.sid=...`)
+**Error Responses:**
+- `401` - Invalid credentials (`{"message":"INVALID_CREDENTIALS"}`)
+- `404` - Endpoint not found (wrong path or Jellyfin auth not enabled)
 
 ---
 
 ### 3. Plex Authentication
-**Endpoint:** `POST /auth/plex`
+**Endpoint:** `POST /api/v1/auth/plex`
 **Request Body:**
 ```json
 {
@@ -52,7 +59,7 @@ https://requests.ozzu.world
 ---
 
 ### 4. Logout
-**Endpoint:** `POST /auth/logout`
+**Endpoint:** `POST /api/v1/auth/logout`
 **Response:**
 ```json
 {
@@ -63,9 +70,16 @@ https://requests.ozzu.world
 ---
 
 ### 5. Current User
-**Endpoint:** `GET /auth/me`
-**Authentication:** Cookie or X-Api-Key header
+**Endpoint:** `GET /api/v1/auth/me`
+**Authentication:** Cookie (`connect.sid`) or X-Api-Key header required
 **Response:** Currently authenticated User object
+**Error Response:**
+```json
+{
+  "message": "cookie 'connect.sid' required",
+  "errors": [{"path": "/api/v1/auth/me", "message": "cookie 'connect.sid' required"}]
+}
+```
 
 ---
 
