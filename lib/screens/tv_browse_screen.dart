@@ -76,11 +76,17 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
 
   Future<void> _loadJellyfinContent() async {
     try {
+      debugPrint('📺 Loading Jellyfin content...');
       final results = await Future.wait([
         _jellyfinService.getRecentlyAdded(),
         _jellyfinService.getMovies(),
         _jellyfinService.getTVShows(),
       ]);
+
+      debugPrint('📺 Jellyfin content loaded:');
+      debugPrint('  - Recently Added: ${results[0].length} items');
+      debugPrint('  - Movies: ${results[1].length} items');
+      debugPrint('  - TV Shows: ${results[2].length} items');
 
       if (mounted) {
         setState(() {
@@ -89,18 +95,25 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
           _tvShows = results[2];
         });
       }
-    } catch (e) {
-      debugPrint('Error loading Jellyfin content: $e');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error loading Jellyfin content: $e');
+      debugPrint('Stack trace: $stackTrace');
     }
   }
 
   Future<void> _loadJellyseerrContent() async {
     try {
+      debugPrint('🎬 Loading Jellyseerr content...');
       final results = await Future.wait([
         _jellyseerrService.getTrendingMovies(),
         _jellyseerrService.getTrendingTV(),
         _jellyseerrService.getPopularMovies(),
       ]);
+
+      debugPrint('🎬 Jellyseerr content loaded:');
+      debugPrint('  - Trending Movies: ${results[0].length} items');
+      debugPrint('  - Trending TV: ${results[1].length} items');
+      debugPrint('  - Popular Movies: ${results[2].length} items');
 
       if (mounted) {
         setState(() {
@@ -109,8 +122,9 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
           _popularMovies = results[2];
         });
       }
-    } catch (e) {
-      debugPrint('Error loading Jellyseerr content: $e');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error loading Jellyseerr content: $e');
+      debugPrint('Stack trace: $stackTrace');
       // Non-fatal: Continue with Jellyfin content only
     }
   }

@@ -78,18 +78,24 @@ class JellyfinService {
     }
 
     try {
+      _logger.i('📽️ Fetching movies from Jellyfin...');
       final response = await http.get(
         Uri.parse('$baseUrl/Users/$_userId/Items?IncludeItemTypes=Movie&Recursive=true&Fields=PrimaryImageAspectRatio,Overview&ImageTypeLimit=1'),
         headers: _getHeaders(),
       );
 
+      _logger.i('📽️ Movies response: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['Items'] ?? [];
+        final items = data['Items'] ?? [];
+        _logger.i('📽️ Found ${items.length} movies');
+        return items;
       }
+      _logger.w('📽️ Failed to fetch movies: ${response.statusCode}');
       return [];
     } catch (e) {
-      _logger.e('Error fetching movies: $e');
+      _logger.e('❌ Error fetching movies: $e');
       return [];
     }
   }
@@ -124,17 +130,23 @@ class JellyfinService {
     }
 
     try {
+      _logger.i('🆕 Fetching recently added from Jellyfin...');
       final response = await http.get(
         Uri.parse('$baseUrl/Users/$_userId/Items/Latest?Fields=PrimaryImageAspectRatio,Overview&ImageTypeLimit=1&Limit=20'),
         headers: _getHeaders(),
       );
 
+      _logger.i('🆕 Recently added response: ${response.statusCode}');
+
       if (response.statusCode == 200) {
-        return json.decode(response.body) as List;
+        final items = json.decode(response.body) as List;
+        _logger.i('🆕 Found ${items.length} recently added items');
+        return items;
       }
+      _logger.w('🆕 Failed to fetch recently added: ${response.statusCode}');
       return [];
     } catch (e) {
-      _logger.e('Error fetching recently added: $e');
+      _logger.e('❌ Error fetching recently added: $e');
       return [];
     }
   }
