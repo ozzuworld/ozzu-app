@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import '../services/keycloak_service.dart';
 import 'login_screen.dart';
+import 'tv_browse_screen.dart';
 
 class VoiceCallScreen extends StatefulWidget {
   final bool startUnmuted;
@@ -635,49 +636,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   }
 
   void _showMediaSettings() {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: AlertDialog(
-          backgroundColor: Colors.black.withOpacity(0.7),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-            side: BorderSide(color: Colors.white.withOpacity(0.2), width: 1),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.movie, color: Colors.white.withOpacity(0.9)),
-              const SizedBox(width: 12),
-              const Text(
-                'Media',
-                style: TextStyle(color: Colors.white, fontSize: 20),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.construction, color: Colors.white.withOpacity(0.4), size: 48),
-              const SizedBox(height: 16),
-              Text(
-                'Media settings coming soon',
-                style: TextStyle(color: Colors.white.withOpacity(0.7)),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.blueAccent,
-              ),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const TVBrowseScreen(),
       ),
     );
   }
