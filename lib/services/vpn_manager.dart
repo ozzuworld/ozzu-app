@@ -89,26 +89,23 @@ class VPNManager {
       _logger.d('Starting WireGuard tunnel: $_currentTunnelName');
 
       // Note: This is a simplified version. Actual implementation depends on wireguard_flutter API
-      final result = await _wireguardFlutterPlugin.startVpn(
+      await _wireguardFlutterPlugin.startVpn(
         serverAddress: config['serverAddress']!,
         wgQuickConfig: config['wgQuickConfig']!,
         providerBundleIdentifier: 'com.ozzu.vpn',
       );
 
-      if (result) {
-        _logger.d('VPN tunnel started successfully');
-        _connectionStartTime = DateTime.now();
-        _assignedIpAddress = config['clientAddress'];
-        _updateState(VPNConnectionState.connected);
-        _headscaleService.updateConnectionStatus(ConnectionStatus.connected);
+      // If we reach here, the VPN started successfully (no exception thrown)
+      _logger.d('VPN tunnel started successfully');
+      _connectionStartTime = DateTime.now();
+      _assignedIpAddress = config['clientAddress'];
+      _updateState(VPNConnectionState.connected);
+      _headscaleService.updateConnectionStatus(ConnectionStatus.connected);
 
-        // Start statistics monitoring
-        _startStatsMonitoring();
+      // Start statistics monitoring
+      _startStatsMonitoring();
 
-        return true;
-      } else {
-        throw Exception('Failed to start VPN tunnel');
-      }
+      return true;
     } catch (e) {
       _logger.e('Failed to connect to VPN: $e');
       _updateState(VPNConnectionState.error);
