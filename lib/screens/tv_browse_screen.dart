@@ -5,9 +5,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../services/jellyfin_service.dart';
 import '../services/jellyseerr_service.dart';
+import '../services/favorites_service.dart';
+import '../services/downloads_service.dart';
 import 'tv_player_screen.dart';
 import 'tv_show_details_screen.dart';
 import 'content_details_screen.dart';
+import 'settings_screen.dart';
 
 class TVBrowseScreen extends StatefulWidget {
   const TVBrowseScreen({super.key});
@@ -19,6 +22,8 @@ class TVBrowseScreen extends StatefulWidget {
 class _TVBrowseScreenState extends State<TVBrowseScreen> {
   final JellyfinService _jellyfinService = JellyfinService();
   final JellyseerrService _jellyseerrService = JellyseerrService();
+  final FavoritesService _favoritesService = FavoritesService();
+  final DownloadsService _downloadsService = DownloadsService();
 
   bool _isLoading = true;
   String? _errorMessage;
@@ -29,6 +34,8 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
   List<dynamic> _popularMovies = [];
   List<dynamic> _movies = [];
   List<dynamic> _tvShows = [];
+  List<Map<String, dynamic>> _favorites = [];
+  List<Map<String, dynamic>> _downloads = [];
 
   // Search state
   bool _isSearching = false;
@@ -73,7 +80,14 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
         await _loadJellyseerrContent();
       }
 
-      setState(() => _isLoading = false);
+      // Load favorites and downloads
+      await _favoritesService.loadFavorites();
+      await _downloadsService.loadDownloads();
+      setState(() {
+        _favorites = _favoritesService.getFavorites();
+        _downloads = _downloadsService.getCompletedDownloads();
+        _isLoading = false;
+      });
     } catch (e) {
       debugPrint('Error initializing TV browse: $e');
       setState(() {
@@ -244,6 +258,18 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
                 setState(() => _isSearching = true);
               },
             ),
+          if (!_isSearching)
+            IconButton(
+              icon: const Icon(Icons.settings, color: Colors.white),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SettingsScreen(),
+                  ),
+                );
+              },
+            ),
         ],
       ),
       body: _isSearching
@@ -326,6 +352,22 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
               isJellyfin: true,
               showProgress: true,
             ),
+            const SizedBox(height: 20),
+          ],
+
+          // My Favorites category
+          if (_favorites.isNotEmpty) ...[
+            _buildContentRow(
+              'My Favorites',
+              _favorites,
+              isJellyfin: _favorites.first.containsKey('Id'),
+            ),
+            const SizedBox(height: 20),
+          ],
+
+          // Downloaded content category
+          if (_downloads.isNotEmpty) ...[
+            _buildDownloadsRow(),
             const SizedBox(height: 20),
           ],
 
@@ -489,6 +531,105 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDownloadsRow() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(Icons.download, color: Colors.blueAccent, size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'Downloaded',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${_downloads.length}',
+                  style: const TextStyle(
+                    color: Colors.blueAccent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 180,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _downloads.length,
+            itemBuilder: (context, index) {
+              final download = _downloads[index];
+              final metadata = download['metadata'] ?? {};
+
+              return Container(
+                width: 120,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        color: Colors.grey[900],
+                        child: const Center(
+                          child: Icon(Icons.download_done, color: Colors.blueAccent, size: 48),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              Colors.black.withOpacity(0.9),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                        child: Text(
+                          download['title'] ?? 'Downloaded',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
