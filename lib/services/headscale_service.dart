@@ -242,6 +242,54 @@ class HeadscaleService {
     }
   }
 
+  /// Register device with Headscale and get WireGuard configuration
+  /// Uses Keycloak access token for authentication
+  Future<WireGuardConfig?> registerDevice(String accessToken) async {
+    try {
+      _logger.d('Registering device with Headscale using Keycloak token');
+
+      // Get device name
+      final deviceName = Platform.isAndroid
+          ? 'android-${DateTime.now().millisecondsSinceEpoch}'
+          : 'ios-${DateTime.now().millisecondsSinceEpoch}';
+
+      // TODO: Your backend needs to provide this endpoint
+      // The endpoint should:
+      // 1. Validate the Keycloak access token
+      // 2. Register/authenticate the device with Headscale
+      // 3. Return Wire Guard configuration
+      final response = await http.post(
+        Uri.parse('${_serverUrl ?? defaultServerUrl}/api/v1/device/register'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'device_name': deviceName,
+          'platform': Platform.isAndroid ? 'android' : 'ios',
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body);
+        _logger.d('Device registered successfully');
+
+        // Mark as registered
+        await _storage.write(key: _keyNodeRegistered, value: 'true');
+        _nodeRegistered = true;
+
+        // Parse and return WireGuard configuration
+        return WireGuardConfig.fromJson(data);
+      } else {
+        _logger.e('Device registration failed: ${response.statusCode} - ${response.body}');
+        throw Exception('Device registration failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      _logger.e('Error registering device: $e');
+      rethrow;
+    }
+  }
+
   /// Launch Tailscale with Headscale server configured
   /// This is the proper way to connect - let Tailscale handle VPN
   Future<OIDCRegistrationResult> registerWithOIDC() async {
@@ -444,4 +492,60 @@ class OIDCRegistrationResult {
     this.authUrl,
     this.error,
   });
+}
+
+/// WireGuard configuration for VPN connection
+class WireGuardConfig {
+  final String privateKey;
+  final String publicKey;
+  final String address;
+  final String serverPublicKey;
+  final String serverEndpoint;
+  final String allowedIPs;
+  final String? dns;
+  final int? persistentKeepalive;
+
+  WireGuardConfig({
+    required this.privateKey,
+    required this.publicKey,
+    required this.address,
+    required this.serverPublicKey,
+    required this.serverEndpoint,
+    required this.allowedIPs,
+    this.dns,
+    this.persistentKeepalive,
+  });
+
+  factory WireGuardConfig.fromJson(Map<String, dynamic> json) {
+    return WireGuardConfig(
+      privateKey: json['privateKey'] ?? json['private_key'] ?? '',
+      publicKey: json['publicKey'] ?? json['public_key'] ?? '',
+      address: json['address'] ?? json['ipv4'] ?? '',
+      serverPublicKey: json['serverPublicKey'] ?? json['server_public_key'] ?? '',
+      serverEndpoint: json['serverEndpoint'] ?? json['server_endpoint'] ?? '',
+      allowedIPs: json['allowedIPs'] ?? json['allowed_ips'] ?? '0.0.0.0/0',
+      dns: json['dns'],
+      persistentKeepalive: json['persistentKeepalive'] ?? json['persistent_keepalive'] ?? 25,
+    );
+  }
+
+  /// Generate wg-quick compatible configuration
+  String toWgQuickConfig() {
+    final buffer = StringBuffer();
+    buffer.writeln('[Interface]');
+    buffer.writeln('PrivateKey = $privateKey');
+    buffer.writeln('Address = $address');
+    if (dns != null) {
+      buffer.writeln('DNS = $dns');
+    }
+    buffer.writeln();
+    buffer.writeln('[Peer]');
+    buffer.writeln('PublicKey = $serverPublicKey');
+    buffer.writeln('Endpoint = $serverEndpoint');
+    buffer.writeln('AllowedIPs = $allowedIPs');
+    if (persistentKeepalive != null) {
+      buffer.writeln('PersistentKeepalive = $persistentKeepalive');
+    }
+    return buffer.toString();
+  }
 }
