@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
+import '../services/jellyfin_service.dart';
 
 class MusicBrowseScreen extends StatefulWidget {
   const MusicBrowseScreen({super.key});
@@ -10,15 +11,15 @@ class MusicBrowseScreen extends StatefulWidget {
 }
 
 class _MusicBrowseScreenState extends State<MusicBrowseScreen> {
+  final JellyfinService _jellyfinService = JellyfinService();
   bool _isLoading = true;
   String? _errorMessage;
 
-  // Mock data - will be replaced with actual Jellyfin music library data
+  // Real Jellyfin data
   List<dynamic> _recentlyPlayed = [];
   List<dynamic> _playlists = [];
   List<dynamic> _albums = [];
   List<dynamic> _artists = [];
-  List<dynamic> _popularTracks = [];
 
   @override
   void initState() {
@@ -33,16 +34,19 @@ class _MusicBrowseScreenState extends State<MusicBrowseScreen> {
     });
 
     try {
-      // TODO: Replace with actual Jellyfin music API calls
-      await Future.delayed(const Duration(seconds: 1)); // Simulate loading
+      // Load all music data from Jellyfin in parallel
+      final results = await Future.wait([
+        _jellyfinService.getRecentlyPlayedMusic(),
+        _jellyfinService.getPlaylists(),
+        _jellyfinService.getAlbums(),
+        _jellyfinService.getArtists(),
+      ]);
 
-      // For now, using mock data to demonstrate UI
       setState(() {
-        _recentlyPlayed = _getMockData(5);
-        _playlists = _getMockData(6);
-        _albums = _getMockData(8);
-        _artists = _getMockData(6);
-        _popularTracks = _getMockData(10);
+        _recentlyPlayed = results[0];
+        _playlists = results[1];
+        _albums = results[2];
+        _artists = results[3];
         _isLoading = false;
       });
     } catch (e) {
@@ -51,14 +55,6 @@ class _MusicBrowseScreenState extends State<MusicBrowseScreen> {
         _isLoading = false;
       });
     }
-  }
-
-  List<dynamic> _getMockData(int count) {
-    return List.generate(count, (index) => {
-      'id': 'mock_$index',
-      'title': 'Item ${index + 1}',
-      'subtitle': 'Description ${index + 1}',
-    });
   }
 
   @override
@@ -113,14 +109,6 @@ class _MusicBrowseScreenState extends State<MusicBrowseScreen> {
             _buildSectionTitle('Artists'),
             const SizedBox(height: 15),
             _buildHorizontalList(_artists, _buildArtistCard),
-            const SizedBox(height: 30),
-          ],
-
-          // Popular Tracks
-          if (_popularTracks.isNotEmpty) ...[
-            _buildSectionTitle('Popular on Ozzu'),
-            const SizedBox(height: 15),
-            _buildTracksList(_popularTracks),
             const SizedBox(height: 30),
           ],
         ],
@@ -205,12 +193,16 @@ class _MusicBrowseScreenState extends State<MusicBrowseScreen> {
   }
 
   Widget _buildSquareCard(dynamic item) {
+    final itemId = item['Id'] ?? '';
+    final title = item['Name'] ?? 'Unknown';
+    final subtitle = item['AlbumArtist'] ?? item['ProductionYear']?.toString() ?? '';
+
     return GestureDetector(
       onTap: () {
-        // TODO: Navigate to item details/player
+        // TODO: Navigate to album details/player
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Tapped: ${item['title']}'),
+            content: Text('Tapped: $title'),
             backgroundColor: Colors.blueAccent,
             duration: const Duration(seconds: 1),
           ),
@@ -231,13 +223,20 @@ class _MusicBrowseScreenState extends State<MusicBrowseScreen> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: _buildPlaceholderImage(),
+                child: itemId.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: _jellyfinService.getImageUrl(itemId),
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => _buildPlaceholderImage(),
+                        errorWidget: (context, url, error) => _buildPlaceholderImage(),
+                      )
+                    : _buildPlaceholderImage(),
               ),
             ),
             const SizedBox(height: 8),
             // Title
             Text(
-              item['title'] ?? 'Unknown',
+              title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
@@ -249,7 +248,7 @@ class _MusicBrowseScreenState extends State<MusicBrowseScreen> {
             const SizedBox(height: 2),
             // Subtitle
             Text(
-              item['subtitle'] ?? '',
+              subtitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -264,12 +263,15 @@ class _MusicBrowseScreenState extends State<MusicBrowseScreen> {
   }
 
   Widget _buildArtistCard(dynamic item) {
+    final itemId = item['Id'] ?? '';
+    final name = item['Name'] ?? 'Unknown Artist';
+
     return GestureDetector(
       onTap: () {
         // TODO: Navigate to artist details
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Tapped: ${item['title']}'),
+            content: Text('Tapped: $name'),
             backgroundColor: Colors.blueAccent,
             duration: const Duration(seconds: 1),
           ),
@@ -289,13 +291,20 @@ class _MusicBrowseScreenState extends State<MusicBrowseScreen> {
                 shape: BoxShape.circle,
               ),
               child: ClipOval(
-                child: _buildPlaceholderImage(),
+                child: itemId.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: _jellyfinService.getImageUrl(itemId),
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => _buildPlaceholderImage(),
+                        errorWidget: (context, url, error) => _buildPlaceholderImage(),
+                      )
+                    : _buildPlaceholderImage(),
               ),
             ),
             const SizedBox(height: 8),
             // Artist name
             Text(
-              item['title'] ?? 'Unknown Artist',
+              name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -304,106 +313,6 @@ class _MusicBrowseScreenState extends State<MusicBrowseScreen> {
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTracksList(List<dynamic> tracks) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: tracks.asMap().entries.map((entry) {
-          final index = entry.key;
-          final track = entry.value;
-          return _buildTrackItem(track, index + 1);
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildTrackItem(dynamic track, int number) {
-    return GestureDetector(
-      onTap: () {
-        // TODO: Play track
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Playing: ${track['title']}'),
-            backgroundColor: Colors.blueAccent,
-            duration: const Duration(seconds: 1),
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: Row(
-          children: [
-            // Track number
-            SizedBox(
-              width: 30,
-              child: Text(
-                '$number',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Album art
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: Colors.grey[800],
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: _buildPlaceholderImage(),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Track info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    track['title'] ?? 'Unknown Track',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    track['subtitle'] ?? 'Unknown Artist',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // More options button
-            IconButton(
-              icon: Icon(
-                Icons.more_vert,
-                color: Colors.white.withOpacity(0.6),
-              ),
-              onPressed: () {
-                // TODO: Show track options menu
-              },
             ),
           ],
         ),
