@@ -208,16 +208,12 @@ class JellyfinService {
 
   // Get video stream URL
   String getStreamUrl(String itemId) {
-    // Use the universal streaming endpoint for better compatibility
-    // This supports transcoding if the client can't play the original format
+    // Direct play - serve the file as-is without transcoding
+    // Static=true tells Jellyfin to serve the original file directly
+    // This minimizes server processing and works with default Jellyfin config
     return '$baseUrl/Videos/$itemId/stream?'
         'api_key=$_accessToken&'
-        'MediaSourceId=$itemId&'
-        'Static=false&'
-        'VideoCodec=h264&'
-        'AudioCodec=aac&'
-        'MaxAudioChannels=2&'
-        'TranscodingProtocol=hls';
+        'Static=true';
   }
 
   // Get seasons for a TV show
