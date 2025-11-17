@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:logger/logger.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:android_intent_plus/android_intent.dart';
 
 /// Service for managing Headscale VPN connections
 /// Handles OIDC authentication and API communication with the headscale control server
@@ -342,116 +341,7 @@ class HeadscaleService {
     }
   }
 
-  /// Launch Tailscale with Headscale server configured
-  /// This is the proper way to connect - let Tailscale handle VPN
-  Future<OIDCRegistrationResult> registerWithOIDC() async {
-    try {
-      _logger.d('Starting Tailscale launch with Headscale server');
-
-      final serverUrl = _serverUrl ?? defaultServerUrl;
-      _logger.d('Launching Tailscale with server: $serverUrl');
-
-      if (Platform.isAndroid) {
-        // Android: Use Intent to open Tailscale with custom server
-        try {
-          // Try to launch Tailscale with server URL
-          final intent = AndroidIntent(
-            action: 'android.intent.action.VIEW',
-            package: 'com.tailscale.ipn',
-            data: 'tailscale://login?server=$serverUrl',
-          );
-
-          await intent.launch();
-
-          _logger.d('Tailscale launched successfully');
-
-          // Mark as potentially registered (user will complete in Tailscale app)
-          await _storage.write(key: _keyNodeRegistered, value: 'true');
-          _nodeRegistered = true;
-
-          return OIDCRegistrationResult(
-            success: true,
-            authUrl: serverUrl,
-          );
-        } catch (e) {
-          _logger.w('Intent launch failed: $e');
-
-          // Check if error indicates app not installed
-          if (e.toString().contains('No Activity found') ||
-              e.toString().contains('ActivityNotFoundException')) {
-            return OIDCRegistrationResult(
-              success: false,
-              error: 'Tailscale app not installed. Please install it first.',
-            );
-          }
-
-          // Try fallback: Open Tailscale app directly
-          try {
-            final appIntent = AndroidIntent(
-              action: 'android.intent.action.MAIN',
-              package: 'com.tailscale.ipn',
-            );
-            await appIntent.launch();
-
-            return OIDCRegistrationResult(
-              success: true,
-              authUrl: serverUrl,
-              error: 'Tailscale opened. Please configure server manually: $serverUrl',
-            );
-          } catch (fallbackError) {
-            _logger.e('Fallback launch also failed: $fallbackError');
-            return OIDCRegistrationResult(
-              success: false,
-              error: 'Tailscale app not installed. Please install it first.',
-            );
-          }
-        }
-      } else if (Platform.isIOS) {
-        // iOS: Use URL scheme
-        final tailscaleUrl = Uri.parse('tailscale://login?server=$serverUrl');
-
-        try {
-          final launched = await launchUrl(
-            tailscaleUrl,
-            mode: LaunchMode.externalApplication,
-          );
-
-          if (!launched) {
-            _logger.e('Failed to launch Tailscale');
-            return OIDCRegistrationResult(
-              success: false,
-              error: 'Tailscale app not installed. Please install it first.',
-            );
-          }
-
-          await _storage.write(key: _keyNodeRegistered, value: 'true');
-          _nodeRegistered = true;
-
-          return OIDCRegistrationResult(
-            success: true,
-            authUrl: serverUrl,
-          );
-        } catch (e) {
-          _logger.e('iOS launch failed: $e');
-          return OIDCRegistrationResult(
-            success: false,
-            error: 'Tailscale app not installed. Please install it first.',
-          );
-        }
-      }
-
-      return OIDCRegistrationResult(
-        success: false,
-        error: 'Unsupported platform',
-      );
-    } catch (e) {
-      _logger.e('Error launching Tailscale: $e');
-      return OIDCRegistrationResult(
-        success: false,
-        error: 'Failed to launch Tailscale: ${e.toString()}',
-      );
-    }
-  }
+  // Old registerWithOIDC method removed - now using native Tailscale SDK via platform channels
 
   /// Check if node is already registered
   bool get isNodeRegistered => _nodeRegistered;

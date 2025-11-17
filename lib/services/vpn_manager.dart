@@ -92,7 +92,7 @@ class VPNManager {
         break;
       case TailscaleConnectionState.disconnecting:
         _updateState(VPNConnectionState.disconnecting);
-        _headscaleService.updateConnectionStatus(ConnectionStatus.disconnecting);
+        _headscaleService.updateConnectionStatus(ConnectionStatus.disconnected);
         break;
       case TailscaleConnectionState.error:
         _updateState(VPNConnectionState.error);
@@ -175,16 +175,20 @@ class VPNManager {
       if (success) {
         _logger.d('VPN disconnected successfully');
 
-      _connectionStartTime = null;
-      _assignedIpAddress = null;
-      _currentTunnelName = null;
-      _currentStats = null;
+        _connectionStartTime = null;
+        _assignedIpAddress = null;
+        _currentTunnelName = null;
+        _currentStats = null;
 
-      _stopStatsMonitoring();
-      _updateState(VPNConnectionState.disconnected);
-      _headscaleService.updateConnectionStatus(ConnectionStatus.disconnected);
+        _stopStatsMonitoring();
+        _updateState(VPNConnectionState.disconnected);
+        _headscaleService.updateConnectionStatus(ConnectionStatus.disconnected);
 
-      return true;
+        return true;
+      } else {
+        _logger.e('Failed to disconnect VPN');
+        return false;
+      }
     } catch (e) {
       _logger.e('Failed to disconnect VPN: $e');
       return false;
