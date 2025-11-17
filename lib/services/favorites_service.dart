@@ -4,7 +4,7 @@ import 'package:logger/logger.dart';
 
 class FavoritesService {
   static final FavoritesService _instance = FavoritesService._internal();
-  factory FavoritesService() => _instance();
+  factory FavoritesService() => _instance;
   FavoritesService._internal();
 
   final Logger _logger = Logger();
