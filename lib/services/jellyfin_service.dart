@@ -90,9 +90,18 @@ class JellyfinService {
         final data = json.decode(response.body);
         final items = data['Items'] ?? [];
         _logger.i('📽️ Found ${items.length} movies');
+
+        // Log first movie details if available
+        if (items.isNotEmpty) {
+          _logger.d('📽️ First movie: ${items[0]['Name']} (ID: ${items[0]['Id']})');
+        } else {
+          _logger.w('📽️ Response body: ${response.body}');
+        }
+
         return items;
       }
       _logger.w('📽️ Failed to fetch movies: ${response.statusCode}');
+      _logger.w('📽️ Response: ${response.body}');
       return [];
     } catch (e) {
       _logger.e('❌ Error fetching movies: $e');
@@ -107,18 +116,33 @@ class JellyfinService {
     }
 
     try {
+      _logger.i('📺 Fetching TV shows from Jellyfin...');
       final response = await http.get(
         Uri.parse('$baseUrl/Users/$_userId/Items?IncludeItemTypes=Series&Recursive=true&Fields=PrimaryImageAspectRatio,Overview&ImageTypeLimit=1'),
         headers: _getHeaders(),
       );
 
+      _logger.i('📺 TV shows response: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['Items'] ?? [];
+        final items = data['Items'] ?? [];
+        _logger.i('📺 Found ${items.length} TV shows');
+
+        // Log first show details if available
+        if (items.isNotEmpty) {
+          _logger.d('📺 First show: ${items[0]['Name']} (ID: ${items[0]['Id']})');
+        } else {
+          _logger.w('📺 Response body: ${response.body}');
+        }
+
+        return items;
       }
+      _logger.w('📺 Failed to fetch TV shows: ${response.statusCode}');
+      _logger.w('📺 Response: ${response.body}');
       return [];
     } catch (e) {
-      _logger.e('Error fetching TV shows: $e');
+      _logger.e('❌ Error fetching TV shows: $e');
       return [];
     }
   }
@@ -141,9 +165,18 @@ class JellyfinService {
       if (response.statusCode == 200) {
         final items = json.decode(response.body) as List;
         _logger.i('🆕 Found ${items.length} recently added items');
+
+        // Log first item details if available
+        if (items.isNotEmpty) {
+          _logger.d('🆕 First item: ${items[0]['Name']} (Type: ${items[0]['Type']}, ID: ${items[0]['Id']})');
+        } else {
+          _logger.w('🆕 Response body: ${response.body}');
+        }
+
         return items;
       }
       _logger.w('🆕 Failed to fetch recently added: ${response.statusCode}');
+      _logger.w('🆕 Response: ${response.body}');
       return [];
     } catch (e) {
       _logger.e('❌ Error fetching recently added: $e');
