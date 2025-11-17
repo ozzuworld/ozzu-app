@@ -57,7 +57,6 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
 
   // View mode state
   String _viewMode = 'row'; // 'row' or 'grid'
-  String _sortBy = 'default'; // 'default', 'alphabetical', 'recent', 'rating'
   String? _selectedGenre; // null means 'All'
 
   final List<String> _genres = [
@@ -211,7 +210,7 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     }
   }
 
-  Future<void> _performSearch(String query) async {
+  Future<void> _performSearch(String query, {bool saveToHistory = false}) async {
     if (query.trim().isEmpty) {
       setState(() {
         _searchResults = [];
@@ -223,8 +222,10 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     setState(() => _isSearchLoading = true);
 
     try {
-      // Add to search history
-      await _addToSearchHistory(query);
+      // Add to search history only when explicitly requested (on submit)
+      if (saveToHistory) {
+        await _addToSearchHistory(query);
+      }
 
       final results = await Future.wait([
         _jellyfinService.search(query),
@@ -327,7 +328,10 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
                 ),
                 onChanged: (value) {
                   setState(() => _searchQuery = value);
-                  _performSearch(value);
+                  _performSearch(value); // Live search without saving
+                },
+                onSubmitted: (value) {
+                  _performSearch(value, saveToHistory: true); // Save to history on submit
                 },
               )
             : const Text(
@@ -340,11 +344,6 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
                 ),
               ),
         actions: [
-          if (!_isSearching && !widget.startWithSearch && _viewMode == 'grid')
-            IconButton(
-              icon: const Icon(Icons.sort, color: Colors.white),
-              onPressed: _showSortOptions,
-            ),
           if (!_isSearching && !widget.startWithSearch)
             IconButton(
               icon: Icon(
@@ -672,90 +671,89 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
           _tvShows,
           isJellyfin: true,
         ),
+        const SizedBox(height: 20),
+
+        // Sorted content rows
+        _buildMixedContentRow(
+          'A-Z',
+          _getSortedContent('alphabetical'),
+        ),
+        const SizedBox(height: 20),
+
+        _buildMixedContentRow(
+          'Top Rated',
+          _getSortedContent('rating'),
+        ),
 
         const SizedBox(height: 40),
       ],
     );
   }
 
-  void _showSortOptions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  'Sort By',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildSortOption('Default Order', 'default', Icons.apps),
-              _buildSortOption('A-Z', 'alphabetical', Icons.sort_by_alpha),
-              _buildSortOption('Recently Added', 'recent', Icons.access_time),
-              _buildSortOption('Rating', 'rating', Icons.star),
-            ],
+  Widget _buildMixedContentRow(String title, List<dynamic> items) {
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        );
-      },
+        ),
+        SizedBox(
+          height: 180,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final item = items[index];
+              // Determine if it's Jellyfin or Jellyseerr based on the presence of 'Id' field
+              final isJellyfin = item['Id'] != null;
+              return _buildContentCard(item, isJellyfin);
+            },
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildSortOption(String title, String value, IconData icon) {
-    final isSelected = _sortBy == value;
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: isSelected ? Colors.blueAccent : Colors.white.withOpacity(0.7),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: isSelected ? Colors.blueAccent : Colors.white,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
-      trailing: isSelected
-          ? const Icon(Icons.check, color: Colors.blueAccent)
-          : null,
-      onTap: () {
-        setState(() {
-          _sortBy = value;
-        });
-        Navigator.pop(context);
+  List<dynamic> _getSortedContent(String sortType) {
+    // Combine all content
+    final allContent = <dynamic>[
+      ..._continueWatching,
+      ..._favorites,
+      ..._recentlyAdded,
+      ..._trendingMovies,
+      ..._trendingTV,
+      ..._popularMovies,
+      ..._movies,
+      ..._tvShows,
+    ];
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sorted by $title'),
-            backgroundColor: Colors.grey[800],
-            duration: const Duration(seconds: 1),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      },
-    );
+    // Apply sorting
+    if (sortType == 'alphabetical') {
+      allContent.sort((a, b) {
+        final aTitle = a['Name'] ?? a['title'] ?? a['name'] ?? '';
+        final bTitle = b['Name'] ?? b['title'] ?? b['name'] ?? '';
+        return aTitle.toString().toLowerCase().compareTo(bTitle.toString().toLowerCase());
+      });
+    } else if (sortType == 'rating') {
+      allContent.sort((a, b) {
+        final aRating = (a['CommunityRating'] ?? a['vote_average'] ?? 0.0) as num;
+        final bRating = (b['CommunityRating'] ?? b['vote_average'] ?? 0.0) as num;
+        return bRating.compareTo(aRating);
+      });
+    }
+
+    return allContent;
   }
 
   Widget _buildGridView() {
@@ -802,27 +800,6 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
       if (_itemMatchesGenre(item)) {
         allContent.add({'item': item, 'isJellyfin': true});
       }
-    }
-
-    // Apply sorting
-    if (_sortBy == 'alphabetical') {
-      allContent.sort((a, b) {
-        final aTitle = a['item']['Name'] ?? a['item']['title'] ?? a['item']['name'] ?? '';
-        final bTitle = b['item']['Name'] ?? b['item']['title'] ?? b['item']['name'] ?? '';
-        return aTitle.toString().toLowerCase().compareTo(bTitle.toString().toLowerCase());
-      });
-    } else if (_sortBy == 'recent') {
-      allContent.sort((a, b) {
-        final aDate = a['item']['PremiereDate'] ?? a['item']['DateCreated'] ?? a['item']['first_air_date'] ?? a['item']['release_date'] ?? '';
-        final bDate = b['item']['PremiereDate'] ?? b['item']['DateCreated'] ?? b['item']['first_air_date'] ?? b['item']['release_date'] ?? '';
-        return bDate.toString().compareTo(aDate.toString());
-      });
-    } else if (_sortBy == 'rating') {
-      allContent.sort((a, b) {
-        final aRating = (a['item']['CommunityRating'] ?? a['item']['vote_average'] ?? 0.0) as num;
-        final bRating = (b['item']['CommunityRating'] ?? b['item']['vote_average'] ?? 0.0) as num;
-        return bRating.compareTo(aRating);
-      });
     }
 
     return CustomScrollView(
@@ -1532,14 +1509,14 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
                 setState(() {
                   _searchQuery = query;
                 });
-                _performSearch(query);
+                _performSearch(query, saveToHistory: true); // Re-save to bump to top
               },
             ),
             onTap: () {
               setState(() {
                 _searchQuery = query;
               });
-              _performSearch(query);
+              _performSearch(query, saveToHistory: true); // Re-save to bump to top
             },
           );
         }).toList(),
