@@ -644,10 +644,7 @@ class _TalkScreenState extends State<TalkScreen> {
           children: [
             // Video or placeholder
             if (videoTrack != null)
-              VideoTrackRenderer(
-                videoTrack,
-                fit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-              )
+              VideoTrackRenderer(videoTrack)
             else
               Container(
                 color: Colors.grey.shade900,
