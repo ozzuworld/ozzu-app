@@ -242,8 +242,54 @@ class HeadscaleService {
     }
   }
 
+  /// Get pre-authentication key from Headscale for Tailscale connection
+  /// Uses Keycloak access token for authentication
+  Future<Map<String, dynamic>?> getPreAuthKey(String accessToken) async {
+    try {
+      _logger.d('Getting pre-auth key from Headscale using Keycloak token');
+
+      // Get device name
+      final deviceName = Platform.isAndroid
+          ? 'android-${DateTime.now().millisecondsSinceEpoch}'
+          : 'ios-${DateTime.now().millisecondsSinceEpoch}';
+
+      final response = await http.post(
+        Uri.parse('${_serverUrl ?? defaultServerUrl}/api/v1/device/register'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'device_name': deviceName,
+          'platform': Platform.isAndroid ? 'android' : 'ios',
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        _logger.d('Pre-auth key obtained successfully');
+        _logger.d('Response body: ${response.body}');
+
+        final data = json.decode(response.body);
+        _logger.d('Parsed JSON data: $data');
+
+        // Mark as registered
+        await _storage.write(key: _keyNodeRegistered, value: 'true');
+        _nodeRegistered = true;
+
+        return data;
+      } else {
+        _logger.e('Failed to get pre-auth key: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to get pre-auth key: ${response.statusCode}');
+      }
+    } catch (e) {
+      _logger.e('Error getting pre-auth key: $e');
+      rethrow;
+    }
+  }
+
   /// Register device with Headscale and get WireGuard configuration
   /// Uses Keycloak access token for authentication
+  /// Note: This method is deprecated - use getPreAuthKey with Tailscale instead
   Future<WireGuardConfig?> registerDevice(String accessToken) async {
     try {
       _logger.d('Registering device with Headscale using Keycloak token');
