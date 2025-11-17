@@ -18,7 +18,7 @@ class HeadscaleService {
   final _logger = Logger();
 
   // Headscale server URL (configured by backend)
-  static const String defaultServerUrl = 'https://headscale.ozzu.world';
+  static const String defaultServerUrl = 'https://api.ozzu.world';
 
   // Storage keys
   static const _keyServerUrl = 'headscale_server_url';
