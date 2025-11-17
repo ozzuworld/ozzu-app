@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  livekit_client: ^2.5.2
+  livekit_client: ^2.4.8
   http: ^1.2.2
   keycloak_wrapper: ^1.4.0
   permission_handler: ^11.3.1
@@ -23,7 +23,7 @@ dependencies:
   shimmer: ^3.0.0
   just_audio: ^0.9.40
   grpc: ^4.0.1
-  protobuf: ^3.1.0
+  protobuf: ^4.2.0
   wireguard_flutter: ^0.1.3
 
 dev_dependencies:

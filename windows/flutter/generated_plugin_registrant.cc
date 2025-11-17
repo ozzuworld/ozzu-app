@@ -11,6 +11,7 @@
 #include <flutter_webrtc/flutter_web_r_t_c_plugin.h>
 #include <livekit_client/live_kit_plugin.h>
 #include <permission_handler_windows/permission_handler_windows_plugin.h>
+#include <wireguard_flutter/wireguard_flutter_plugin_c_api.h>
 
 void RegisterPlugins(flutter::PluginRegistry* registry) {
   ConnectivityPlusWindowsPluginRegisterWithRegistrar(
@@ -23,4 +24,6 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("LiveKitPlugin"));
   PermissionHandlerWindowsPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("PermissionHandlerWindowsPlugin"));
+  WireguardFlutterPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("WireguardFlutterPluginCApi"));
 }
