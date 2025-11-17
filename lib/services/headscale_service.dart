@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:logger/logger.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:android_intent_plus/android_intent.dart';
+import 'package:device_apps/device_apps.dart';
 
 /// Service for managing Headscale VPN connections
 /// Handles OIDC authentication and API communication with the headscale control server
@@ -205,48 +208,127 @@ class HeadscaleService {
     }
   }
 
-  /// Register device using OIDC (seamless SSO with Keycloak)
-  /// This opens a browser window that uses the existing Keycloak session
-  /// Returns the auth URL that was used for registration
+  /// Check if Tailscale app is installed
+  Future<bool> isTailscaleInstalled() async {
+    try {
+      if (Platform.isAndroid) {
+        final app = await DeviceApps.getApp('com.tailscale.ipn');
+        return app != null;
+      } else if (Platform.isIOS) {
+        // Check if Tailscale URL scheme can be opened
+        final url = Uri.parse('tailscale://');
+        return await canLaunchUrl(url);
+      }
+      return false;
+    } catch (e) {
+      _logger.e('Error checking Tailscale installation: $e');
+      return false;
+    }
+  }
+
+  /// Open Tailscale app store page for installation
+  Future<void> openTailscaleInstallPage() async {
+    try {
+      if (Platform.isAndroid) {
+        final playStoreUrl = Uri.parse('https://play.google.com/store/apps/details?id=com.tailscale.ipn');
+        await launchUrl(playStoreUrl, mode: LaunchMode.externalApplication);
+      } else if (Platform.isIOS) {
+        final appStoreUrl = Uri.parse('https://apps.apple.com/app/tailscale/id1470499037');
+        await launchUrl(appStoreUrl, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      _logger.e('Error opening Tailscale install page: $e');
+    }
+  }
+
+  /// Launch Tailscale with Headscale server configured
+  /// This is the proper way to connect - let Tailscale handle VPN
   Future<OIDCRegistrationResult> registerWithOIDC() async {
     try {
-      _logger.d('Starting OIDC registration with Headscale');
+      _logger.d('Starting Tailscale launch with Headscale server');
 
-      // Use configured server URL or default
-      final serverUrl = _serverUrl ?? defaultServerUrl;
-
-      // Headscale OIDC registration endpoint
-      final oidcUrl = Uri.parse('$serverUrl/oidc/register');
-
-      _logger.d('Opening OIDC URL: $oidcUrl');
-
-      // Launch browser for OIDC authentication
-      // This will use the existing Keycloak session if user is already logged in
-      final launched = await launchUrl(
-        oidcUrl,
-        mode: LaunchMode.externalApplication,
-      );
-
-      if (!launched) {
-        _logger.e('Failed to launch OIDC URL');
+      // Check if Tailscale is installed
+      final installed = await isTailscaleInstalled();
+      if (!installed) {
+        _logger.e('Tailscale app not installed');
         return OIDCRegistrationResult(
           success: false,
-          error: 'Failed to open authentication page',
+          error: 'Tailscale app not installed. Please install it first.',
         );
       }
 
-      // Mark as registered (in real implementation, you'd verify this)
-      await _storage.write(key: _keyNodeRegistered, value: 'true');
-      _nodeRegistered = true;
+      final serverUrl = _serverUrl ?? defaultServerUrl;
+      _logger.d('Launching Tailscale with server: $serverUrl');
 
-      _logger.d('OIDC registration initiated successfully');
+      if (Platform.isAndroid) {
+        // Android: Use Intent to open Tailscale with custom server
+        try {
+          // First, try to launch Tailscale settings to set custom server
+          final intent = AndroidIntent(
+            action: 'android.intent.action.VIEW',
+            package: 'com.tailscale.ipn',
+            data: 'tailscale://login?server=$serverUrl',
+          );
+
+          await intent.launch();
+
+          _logger.d('Tailscale launched successfully');
+
+          // Mark as potentially registered (user will complete in Tailscale app)
+          await _storage.write(key: _keyNodeRegistered, value: 'true');
+          _nodeRegistered = true;
+
+          return OIDCRegistrationResult(
+            success: true,
+            authUrl: serverUrl,
+          );
+        } catch (e) {
+          _logger.w('Intent launch failed, trying alternate method: $e');
+
+          // Fallback: Open Tailscale app directly
+          final appIntent = AndroidIntent(
+            action: 'android.intent.action.MAIN',
+            package: 'com.tailscale.ipn',
+          );
+          await appIntent.launch();
+
+          return OIDCRegistrationResult(
+            success: true,
+            authUrl: serverUrl,
+            error: 'Please configure server manually in Tailscale settings: $serverUrl',
+          );
+        }
+      } else if (Platform.isIOS) {
+        // iOS: Use URL scheme
+        final tailscaleUrl = Uri.parse('tailscale://login?server=$serverUrl');
+        final launched = await launchUrl(
+          tailscaleUrl,
+          mode: LaunchMode.externalApplication,
+        );
+
+        if (!launched) {
+          _logger.e('Failed to launch Tailscale');
+          return OIDCRegistrationResult(
+            success: false,
+            error: 'Failed to open Tailscale app',
+          );
+        }
+
+        await _storage.write(key: _keyNodeRegistered, value: 'true');
+        _nodeRegistered = true;
+
+        return OIDCRegistrationResult(
+          success: true,
+          authUrl: serverUrl,
+        );
+      }
 
       return OIDCRegistrationResult(
-        success: true,
-        authUrl: oidcUrl.toString(),
+        success: false,
+        error: 'Unsupported platform',
       );
     } catch (e) {
-      _logger.e('OIDC registration error: $e');
+      _logger.e('Error launching Tailscale: $e');
       return OIDCRegistrationResult(
         success: false,
         error: e.toString(),
