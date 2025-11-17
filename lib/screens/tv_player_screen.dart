@@ -37,6 +37,11 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
   Timer? _countdownTimer;
   Map<String, dynamic>? _nextEpisode;
 
+  // Skip indicator state
+  bool _showSkipLeft = false;
+  bool _showSkipRight = false;
+  Timer? _skipIndicatorTimer;
+
   @override
   void initState() {
     super.initState();
@@ -237,11 +242,34 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
     }
   }
 
+  void _showSkipIndicator(bool isLeft) {
+    _skipIndicatorTimer?.cancel();
+    setState(() {
+      if (isLeft) {
+        _showSkipLeft = true;
+        _showSkipRight = false;
+      } else {
+        _showSkipRight = true;
+        _showSkipLeft = false;
+      }
+    });
+
+    _skipIndicatorTimer = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        setState(() {
+          _showSkipLeft = false;
+          _showSkipRight = false;
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
     _hideControlsTimer?.cancel();
     _progressReportTimer?.cancel();
     _countdownTimer?.cancel();
+    _skipIndicatorTimer?.cancel();
 
     // Report playback stopped before disposing
     if (_controller != null && _controller!.value.isInitialized) {
@@ -264,11 +292,46 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTap: _toggleControls,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Double tap to skip areas
+          Row(
+            children: [
+              // Left side - double tap to rewind 10s
+              Expanded(
+                child: GestureDetector(
+                  onDoubleTap: () {
+                    if (_controller != null && _controller!.value.isInitialized) {
+                      final position = _controller!.value.position;
+                      _controller!.seekTo(position - const Duration(seconds: 10));
+                      _showSkipIndicator(true);
+                    }
+                  },
+                  onTap: _toggleControls,
+                  child: Container(color: Colors.transparent),
+                ),
+              ),
+              // Right side - double tap to forward 10s
+              Expanded(
+                child: GestureDetector(
+                  onDoubleTap: () {
+                    if (_controller != null && _controller!.value.isInitialized) {
+                      final position = _controller!.value.position;
+                      _controller!.seekTo(position + const Duration(seconds: 10));
+                      _showSkipIndicator(false);
+                    }
+                  },
+                  onTap: _toggleControls,
+                  child: Container(color: Colors.transparent),
+                ),
+              ),
+            ],
+          ),
+
+          Stack(
+            fit: StackFit.expand,
+            children: [
             // Video player
             if (_controller != null && _controller!.value.isInitialized)
               Center(
@@ -458,6 +521,23 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
                 ),
               ),
 
+            // Skip indicators (double-tap feedback)
+            if (_showSkipLeft || _showSkipRight)
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _showSkipLeft ? Icons.replay_10 : Icons.forward_10,
+                    color: Colors.white,
+                    size: 48,
+                  ),
+                ),
+              ),
+
             // Next episode countdown overlay
             if (_showNextEpisodeCountdown && _nextEpisode != null)
               Container(
@@ -542,8 +622,9 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
                   ),
                 ),
               ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }

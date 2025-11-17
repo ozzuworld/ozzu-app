@@ -7,6 +7,7 @@ import '../services/jellyfin_service.dart';
 import '../services/jellyseerr_service.dart';
 import 'tv_player_screen.dart';
 import 'tv_show_details_screen.dart';
+import 'content_details_screen.dart';
 
 class TVBrowseScreen extends StatefulWidget {
   const TVBrowseScreen({super.key});
@@ -593,14 +594,21 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
       progressPercent = (item['UserData']['PlayedPercentage'] ?? 0.0).toDouble() / 100.0;
     }
 
+    // Create unique hero tag
+    final heroTag = isJellyfin
+        ? 'content_${item['Id']}'
+        : 'content_jellyseerr_${item['id']}';
+
     return GestureDetector(
       onTap: () => isJellyfin ? _playItem(item) : _showDetails(item, isJellyfin),
-      child: Container(
-        width: 120,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Stack(
+      child: Hero(
+        tag: heroTag,
+        child: Container(
+          width: 120,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Stack(
             fit: StackFit.expand,
             children: [
               CachedNetworkImage(
@@ -649,6 +657,7 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
           ),
         ),
       ),
+        ),
     );
   }
 
@@ -684,68 +693,66 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
   }
 
   void _showDetails(dynamic item, bool isJellyfin) {
-    final title = isJellyfin ? item['Name'] : (item['title'] ?? item['name']);
-    final overview = item['Overview'] ?? item['overview'] ?? 'No description available';
-    final imageUrl = isJellyfin
-        ? _jellyfinService.getImageUrl(item['Id'], type: 'Backdrop')
-        : _jellyseerrService.getImageUrl(item['backdropPath'], size: 'w500');
+    // For Jellyfin items, show simple dialog (can play directly)
+    if (isJellyfin) {
+      final title = item['Name'];
+      final overview = item['Overview'] ?? 'No description available';
+      final imageUrl = _jellyfinService.getImageUrl(item['Id'], type: 'Backdrop');
 
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.8),
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 500),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.9),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.2)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Backdrop image
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: CachedNetworkImage(
-                    imageUrl: imageUrl,
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorWidget: (context, url, error) => Container(
+      showDialog(
+        context: context,
+        barrierColor: Colors.black.withOpacity(0.8),
+        builder: (context) => BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 500),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(0.2)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                    child: CachedNetworkImage(
+                      imageUrl: imageUrl,
                       height: 200,
-                      color: Colors.grey[900],
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorWidget: (context, url, error) => Container(
+                        height: 200,
+                        color: Colors.grey[900],
+                      ),
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        overview,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 14,
+                        const SizedBox(height: 12),
+                        Text(
+                          overview,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          if (isJellyfin)
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
                             Expanded(
                               child: ElevatedButton.icon(
                                 onPressed: () {
@@ -761,26 +768,46 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
                                 ),
                               ),
                             ),
-                          if (isJellyfin) const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.pop(context),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                side: BorderSide(color: Colors.white.withOpacity(0.3)),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                ),
+                                child: const Text('Close'),
                               ),
-                              child: const Text('Close'),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
+        ),
+      );
+      return;
+    }
+
+    // For Jellyseerr items, navigate to full details screen
+    final tmdbId = item['id'];
+    final mediaType = item['mediaType'];
+    final title = item['title'] ?? item['name'];
+    final posterPath = item['posterPath'];
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ContentDetailsScreen(
+          tmdbId: tmdbId,
+          mediaType: mediaType,
+          title: title,
+          posterPath: posterPath,
         ),
       ),
     );
