@@ -12,7 +12,7 @@ class VPNManager {
 
   final _logger = Logger();
   final _headscaleService = HeadscaleService();
-  final _wireguardFlutterPlugin = WireguardFlutter();
+  final _wireguardFlutterPlugin = WireGuardFlutter.instance;
 
   // Connection state
   final _connectionStateController = StreamController<VPNConnectionState>.broadcast();
@@ -42,7 +42,7 @@ class VPNManager {
 
     try {
       // Initialize WireGuard plugin
-      await _wireguardFlutterPlugin.initialize();
+      await _wireguardFlutterPlugin.initialize(interfaceName: 'ozzu_wg0');
       _logger.d('WireGuard plugin initialized');
 
       // Check if there's an existing active tunnel
