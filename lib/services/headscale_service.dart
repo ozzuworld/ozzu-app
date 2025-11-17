@@ -6,7 +6,6 @@ import 'dart:convert';
 import 'package:logger/logger.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:android_intent_plus/android_intent.dart';
-import 'package:device_apps/device_apps.dart';
 
 /// Service for managing Headscale VPN connections
 /// Handles OIDC authentication and API communication with the headscale control server
@@ -208,21 +207,23 @@ class HeadscaleService {
     }
   }
 
-  /// Check if Tailscale app is installed
+  /// Check if Tailscale app can be launched
+  /// We try to check if the URL scheme is available
   Future<bool> isTailscaleInstalled() async {
     try {
       if (Platform.isAndroid) {
-        final app = await DeviceApps.getApp('com.tailscale.ipn');
-        return app != null;
+        // On Android, we'll just try to launch and handle the error
+        // This is simpler than checking if the package is installed
+        return true; // We'll handle the error when launching
       } else if (Platform.isIOS) {
         // Check if Tailscale URL scheme can be opened
         final url = Uri.parse('tailscale://');
         return await canLaunchUrl(url);
       }
-      return false;
+      return true; // Default to true, handle errors on launch
     } catch (e) {
       _logger.e('Error checking Tailscale installation: $e');
-      return false;
+      return true; // Return true and let the launch attempt fail gracefully
     }
   }
 
@@ -247,23 +248,13 @@ class HeadscaleService {
     try {
       _logger.d('Starting Tailscale launch with Headscale server');
 
-      // Check if Tailscale is installed
-      final installed = await isTailscaleInstalled();
-      if (!installed) {
-        _logger.e('Tailscale app not installed');
-        return OIDCRegistrationResult(
-          success: false,
-          error: 'Tailscale app not installed. Please install it first.',
-        );
-      }
-
       final serverUrl = _serverUrl ?? defaultServerUrl;
       _logger.d('Launching Tailscale with server: $serverUrl');
 
       if (Platform.isAndroid) {
         // Android: Use Intent to open Tailscale with custom server
         try {
-          // First, try to launch Tailscale settings to set custom server
+          // Try to launch Tailscale with server URL
           final intent = AndroidIntent(
             action: 'android.intent.action.VIEW',
             package: 'com.tailscale.ipn',
@@ -283,44 +274,70 @@ class HeadscaleService {
             authUrl: serverUrl,
           );
         } catch (e) {
-          _logger.w('Intent launch failed, trying alternate method: $e');
+          _logger.w('Intent launch failed: $e');
 
-          // Fallback: Open Tailscale app directly
-          final appIntent = AndroidIntent(
-            action: 'android.intent.action.MAIN',
-            package: 'com.tailscale.ipn',
-          );
-          await appIntent.launch();
+          // Check if error indicates app not installed
+          if (e.toString().contains('No Activity found') ||
+              e.toString().contains('ActivityNotFoundException')) {
+            return OIDCRegistrationResult(
+              success: false,
+              error: 'Tailscale app not installed. Please install it first.',
+            );
+          }
 
-          return OIDCRegistrationResult(
-            success: true,
-            authUrl: serverUrl,
-            error: 'Please configure server manually in Tailscale settings: $serverUrl',
-          );
+          // Try fallback: Open Tailscale app directly
+          try {
+            final appIntent = AndroidIntent(
+              action: 'android.intent.action.MAIN',
+              package: 'com.tailscale.ipn',
+            );
+            await appIntent.launch();
+
+            return OIDCRegistrationResult(
+              success: true,
+              authUrl: serverUrl,
+              error: 'Tailscale opened. Please configure server manually: $serverUrl',
+            );
+          } catch (fallbackError) {
+            _logger.e('Fallback launch also failed: $fallbackError');
+            return OIDCRegistrationResult(
+              success: false,
+              error: 'Tailscale app not installed. Please install it first.',
+            );
+          }
         }
       } else if (Platform.isIOS) {
         // iOS: Use URL scheme
         final tailscaleUrl = Uri.parse('tailscale://login?server=$serverUrl');
-        final launched = await launchUrl(
-          tailscaleUrl,
-          mode: LaunchMode.externalApplication,
-        );
 
-        if (!launched) {
-          _logger.e('Failed to launch Tailscale');
+        try {
+          final launched = await launchUrl(
+            tailscaleUrl,
+            mode: LaunchMode.externalApplication,
+          );
+
+          if (!launched) {
+            _logger.e('Failed to launch Tailscale');
+            return OIDCRegistrationResult(
+              success: false,
+              error: 'Tailscale app not installed. Please install it first.',
+            );
+          }
+
+          await _storage.write(key: _keyNodeRegistered, value: 'true');
+          _nodeRegistered = true;
+
+          return OIDCRegistrationResult(
+            success: true,
+            authUrl: serverUrl,
+          );
+        } catch (e) {
+          _logger.e('iOS launch failed: $e');
           return OIDCRegistrationResult(
             success: false,
-            error: 'Failed to open Tailscale app',
+            error: 'Tailscale app not installed. Please install it first.',
           );
         }
-
-        await _storage.write(key: _keyNodeRegistered, value: 'true');
-        _nodeRegistered = true;
-
-        return OIDCRegistrationResult(
-          success: true,
-          authUrl: serverUrl,
-        );
       }
 
       return OIDCRegistrationResult(
@@ -331,7 +348,7 @@ class HeadscaleService {
       _logger.e('Error launching Tailscale: $e');
       return OIDCRegistrationResult(
         success: false,
-        error: e.toString(),
+        error: 'Failed to launch Tailscale: ${e.toString()}',
       );
     }
   }
