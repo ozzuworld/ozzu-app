@@ -404,6 +404,41 @@ class JellyfinService {
     }
   }
 
+  // Search for content
+  Future<List<dynamic>> search(String query) async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    if (query.trim().isEmpty) {
+      return [];
+    }
+
+    try {
+      _logger.i('🔍 Searching Jellyfin for: $query');
+      final response = await http.get(
+        Uri.parse('$baseUrl/Users/$_userId/Items?'
+            'searchTerm=$query&'
+            'Recursive=true&'
+            'IncludeItemTypes=Movie,Series&'
+            'Fields=PrimaryImageAspectRatio,Overview&'
+            'ImageTypeLimit=1'),
+        headers: _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['Items'] ?? [];
+        _logger.i('🔍 Found ${items.length} results in Jellyfin');
+        return items;
+      }
+      return [];
+    } catch (e) {
+      _logger.e('❌ Error searching Jellyfin: $e');
+      return [];
+    }
+  }
+
   // Get image URL (poster/backdrop)
   String getImageUrl(String itemId, {String type = 'Primary'}) {
     return '$baseUrl/Items/$itemId/Images/$type?api_key=$_accessToken';

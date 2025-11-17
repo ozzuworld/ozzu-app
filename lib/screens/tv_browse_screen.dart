@@ -29,6 +29,12 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
   List<dynamic> _movies = [];
   List<dynamic> _tvShows = [];
 
+  // Search state
+  bool _isSearching = false;
+  String _searchQuery = '';
+  List<dynamic> _searchResults = [];
+  bool _isSearchLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -106,6 +112,46 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     }
   }
 
+  Future<void> _performSearch(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearchLoading = false;
+      });
+      return;
+    }
+
+    setState(() => _isSearchLoading = true);
+
+    try {
+      final results = await Future.wait([
+        _jellyfinService.search(query),
+        if (!kIsWeb) _jellyseerrService.search(query) else Future.value(<dynamic>[]),
+      ]);
+
+      final jellyfinResults = results[0];
+      final jellyseerrResults = results[1];
+
+      // Combine results with markers for source
+      final combined = [
+        ...jellyfinResults.map((item) => {'source': 'jellyfin', 'data': item}),
+        ...jellyseerrResults.map((item) => {'source': 'jellyseerr', 'data': item}),
+      ];
+
+      if (mounted) {
+        setState(() {
+          _searchResults = combined;
+          _isSearchLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ Error searching: $e');
+      if (mounted) {
+        setState(() => _isSearchLoading = false);
+      }
+    }
+  }
+
   Future<void> _loadJellyseerrContent() async {
     try {
       debugPrint('🎬 Loading Jellyseerr content...');
@@ -142,34 +188,70 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withOpacity(0.2)),
+        leading: _isSearching
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () {
+                  setState(() {
+                    _isSearching = false;
+                    _searchQuery = '';
+                    _searchResults = [];
+                  });
+                },
+              )
+            : IconButton(
+                icon: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                  ),
+                  child: const Icon(Icons.arrow_back, color: Colors.white),
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+        title: _isSearching
+            ? TextField(
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Search movies & TV shows...',
+                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  border: InputBorder.none,
+                ),
+                onChanged: (value) {
+                  setState(() => _searchQuery = value);
+                  _performSearch(value);
+                },
+              )
+            : const Text(
+                'OZZU TV',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                ),
+              ),
+        actions: [
+          if (!_isSearching)
+            IconButton(
+              icon: const Icon(Icons.search, color: Colors.white),
+              onPressed: () {
+                setState(() => _isSearching = true);
+              },
             ),
-            child: const Icon(Icons.arrow_back, color: Colors.white),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'OZZU TV',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2,
-          ),
-        ),
+        ],
       ),
-      body: _isLoading
-          ? _buildLoadingState()
-          : _errorMessage != null
-              ? _buildErrorState()
-              : _buildContentBody(),
+      body: _isSearching
+          ? _buildSearchBody()
+          : _isLoading
+              ? _buildLoadingState()
+              : _errorMessage != null
+                  ? _buildErrorState()
+                  : _buildContentBody(),
     );
   }
 
@@ -701,6 +783,73 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSearchBody() {
+    return Container(
+      padding: const EdgeInsets.only(top: 100),
+      child: _isSearchLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _searchQuery.trim().isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.search,
+                        size: 64,
+                        color: Colors.white.withOpacity(0.3),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Search for movies & TV shows',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.5),
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : _searchResults.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.search_off,
+                            size: 64,
+                            color: Colors.white.withOpacity(0.3),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No results found for "$_searchQuery"',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.5),
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : GridView.builder(
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        childAspectRatio: 0.7,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                      ),
+                      itemCount: _searchResults.length,
+                      itemBuilder: (context, index) {
+                        final result = _searchResults[index];
+                        final isJellyfin = result['source'] == 'jellyfin';
+                        final item = result['data'];
+
+                        return _buildContentCard(item, isJellyfin);
+                      },
+                    ),
     );
   }
 }
