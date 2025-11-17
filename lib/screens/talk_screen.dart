@@ -52,6 +52,10 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
   // Animations
   late AnimationController _controlsAnimationController;
   late AnimationController _roomsAnimationController;
+  late AnimationController _physicsAnimationController;
+
+  // Physics-based particle positions
+  final Map<String, ParticlePhysics> _particlePhysics = {};
 
   @override
   void initState() {
@@ -69,6 +73,11 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+    _physicsAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(days: 365), // Runs forever
+    )..addListener(_updatePhysics);
+
     // Animate public rooms if needed
     if (_showPublicRooms) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -90,6 +99,7 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     _roomListener?.dispose();
     _controlsAnimationController.dispose();
     _roomsAnimationController.dispose();
+    _physicsAnimationController.dispose();
     _disconnectFromRoom();
     super.dispose();
   }
@@ -257,12 +267,143 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
       if (_room!.localParticipant != null) _room!.localParticipant!,
       ..._room!.remoteParticipants.values,
     ];
+
+    // Initialize physics for new participants
+    _initializeParticlePhysics();
+
+    // Start physics animation if we have participants
+    if (_participants.isNotEmpty && !_physicsAnimationController.isAnimating) {
+      _physicsAnimationController.repeat();
+    }
+  }
+
+  // Initialize physics simulation for all particles
+  void _initializeParticlePhysics() {
+    // Remove physics for participants who left
+    _particlePhysics.removeWhere((id, _) =>
+      !_participants.any((p) => p.identity == id));
+
+    // Add physics for new participants
+    for (int i = 0; i < _participants.length; i++) {
+      final participant = _participants[i];
+      final id = participant.identity ?? 'unknown-$i';
+
+      if (!_particlePhysics.containsKey(id)) {
+        // Calculate ideal orbital position
+        final angle = (2 * math.pi * i / _participants.length) - (math.pi / 2);
+
+        _particlePhysics[id] = ParticlePhysics(
+          targetAngle: angle,
+          currentAngle: angle + (math.Random().nextDouble() - 0.5) * 0.3,
+          currentRadius: 0.32 + (math.Random().nextDouble() - 0.5) * 0.05,
+          velocityAngle: (math.Random().nextDouble() - 0.5) * 0.02,
+          velocityRadius: (math.Random().nextDouble() - 0.5) * 0.01,
+        );
+      } else {
+        // Update target angle for existing participants
+        final angle = (2 * math.pi * i / _participants.length) - (math.pi / 2);
+        _particlePhysics[id]!.targetAngle = angle;
+      }
+    }
+  }
+
+  // Update physics simulation every frame
+  void _updatePhysics() {
+    if (_participants.isEmpty) return;
+
+    const dt = 0.016; // ~60fps
+    const repulsionStrength = 0.008;
+    const springStrength = 0.05;
+    const damping = 0.92;
+    const minDistance = 0.15;
+
+    // Update each particle
+    for (int i = 0; i < _participants.length; i++) {
+      final participant = _participants[i];
+      final id = participant.identity ?? 'unknown-$i';
+      final physics = _particlePhysics[id];
+      if (physics == null) continue;
+
+      double forceAngle = 0;
+      double forceRadius = 0;
+
+      // Spring force toward target orbital position
+      final angleDiff = _normalizeAngle(physics.targetAngle - physics.currentAngle);
+      forceAngle += angleDiff * springStrength;
+
+      final radiusDiff = 0.32 - physics.currentRadius;
+      forceRadius += radiusDiff * springStrength;
+
+      // Repulsion from other participants
+      for (int j = 0; j < _participants.length; j++) {
+        if (i == j) continue;
+
+        final otherParticipant = _participants[j];
+        final otherId = otherParticipant.identity ?? 'unknown-$j';
+        final otherPhysics = _particlePhysics[otherId];
+        if (otherPhysics == null) continue;
+
+        // Calculate distance between particles
+        final dx = physics.currentRadius * math.cos(physics.currentAngle) -
+                   otherPhysics.currentRadius * math.cos(otherPhysics.currentAngle);
+        final dy = physics.currentRadius * math.sin(physics.currentAngle) -
+                   otherPhysics.currentRadius * math.sin(otherPhysics.currentAngle);
+        final distance = math.sqrt(dx * dx + dy * dy);
+
+        if (distance < minDistance && distance > 0.001) {
+          // Apply repulsion force
+          final repulsion = repulsionStrength * (minDistance - distance) / distance;
+          final repulsionAngle = math.atan2(dy, dx);
+
+          forceAngle += repulsion * math.sin(repulsionAngle - physics.currentAngle);
+          forceRadius += repulsion * math.cos(repulsionAngle - physics.currentAngle);
+        }
+      }
+
+      // Add some gentle random drift for organic feel
+      forceAngle += (math.Random().nextDouble() - 0.5) * 0.001;
+      forceRadius += (math.Random().nextDouble() - 0.5) * 0.0005;
+
+      // Update velocities
+      physics.velocityAngle += forceAngle * dt;
+      physics.velocityRadius += forceRadius * dt;
+
+      // Apply damping
+      physics.velocityAngle *= damping;
+      physics.velocityRadius *= damping;
+
+      // Update positions
+      physics.currentAngle += physics.velocityAngle;
+      physics.currentRadius += physics.velocityRadius;
+
+      // Clamp radius to reasonable bounds
+      physics.currentRadius = physics.currentRadius.clamp(0.25, 0.4);
+
+      // Normalize angle
+      physics.currentAngle = _normalizeAngle(physics.currentAngle);
+    }
+
+    // Trigger rebuild
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  // Normalize angle to -π to π range
+  double _normalizeAngle(double angle) {
+    while (angle > math.pi) angle -= 2 * math.pi;
+    while (angle < -math.pi) angle += 2 * math.pi;
+    return angle;
   }
 
   // Disconnect from room
   Future<void> _disconnectFromRoom() async {
     await _room?.disconnect();
     _roomListener?.dispose();
+
+    // Stop physics animation
+    _physicsAnimationController.stop();
+    _particlePhysics.clear();
 
     setState(() {
       _room = null;
@@ -830,29 +971,28 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
               size: Size(constraints.maxWidth, constraints.maxHeight),
               painter: _ParticipantConnectionsPainter(
                 participants: _participants,
+                particlePhysics: _particlePhysics,
                 centerX: centerX,
                 centerY: centerY,
-                radius: baseRadius,
-                participantSize: participantSize,
+                screenSize: math.min(constraints.maxWidth, constraints.maxHeight),
               ),
             ),
 
-            // Central room name box
+            // Central room name box (small circle)
             Positioned(
-              left: centerX - 80,
-              top: centerY - 40,
+              left: centerX - 35,
+              top: centerY - 35,
               child: _buildCentralRoomNode(),
             ),
 
-            // Participant nodes arranged in circle
+            // Participant nodes with physics-based positions
             for (int i = 0; i < participantCount; i++)
-              _buildRadialParticipant(
+              _buildFloatingParticipant(
                 participant: _participants[i],
                 index: i,
-                total: participantCount,
                 centerX: centerX,
                 centerY: centerY,
-                radius: baseRadius,
+                screenSize: math.min(constraints.maxWidth, constraints.maxHeight),
                 size: participantSize,
               ),
           ],
@@ -861,7 +1001,7 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Central room node (skill tree center)
+  // Central room node - small circle (like a connection point)
   Widget _buildCentralRoomNode() {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
@@ -873,64 +1013,51 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
           child: child,
         );
       },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-            width: 160,
-            height: 80,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.purple.withOpacity(0.3),
-                  Colors.blue.withOpacity(0.2),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.3),
-                width: 2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.purple.withOpacity(0.3),
-                  blurRadius: 30,
-                  spreadRadius: 5,
-                ),
-              ],
+      child: Container(
+        width: 70,
+        height: 70,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.purple.withOpacity(0.4),
+              Colors.blue.withOpacity(0.3),
+            ],
+          ),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.4),
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.purple.withOpacity(0.4),
+              blurRadius: 25,
+              spreadRadius: 3,
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
+            BoxShadow(
+              color: Colors.blue.withOpacity(0.3),
+              blurRadius: 40,
+              spreadRadius: 0,
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.3),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Icon(
                   Icons.hub_rounded,
-                  color: Colors.white.withOpacity(0.9),
-                  size: 24,
+                  color: Colors.white.withOpacity(0.95),
+                  size: 28,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  _currentRoomName ?? 'Room',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.95),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${_participants.length} connected',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -938,22 +1065,28 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Radial participant node
-  Widget _buildRadialParticipant({
+  // Floating participant with physics-based position
+  Widget _buildFloatingParticipant({
     required Participant participant,
     required int index,
-    required int total,
     required double centerX,
     required double centerY,
-    required double radius,
+    required double screenSize,
     required double size,
   }) {
-    // Calculate angle for even distribution around circle
-    final angle = (2 * math.pi * index / total) - (math.pi / 2);
+    final id = participant.identity ?? 'unknown-$index';
+    final physics = _particlePhysics[id];
+
+    // If physics not initialized yet, use default position
+    final angle = physics?.currentAngle ?? ((2 * math.pi * index / _participants.length) - (math.pi / 2));
+    final radius = (physics?.currentRadius ?? 0.32) * screenSize;
+
     final x = centerX + radius * math.cos(angle) - (size / 2);
     final y = centerY + radius * math.sin(angle) - (size / 2);
 
-    return Positioned(
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 16), // Smooth 60fps interpolation
+      curve: Curves.linear,
       left: x,
       top: y,
       child: TweenAnimationBuilder<double>(
@@ -1217,41 +1350,48 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
   }
 }
 
-// Custom painter for connection lines (skill tree style)
+// Custom painter for connection lines (skill tree style) with physics
 class _ParticipantConnectionsPainter extends CustomPainter {
   final List<Participant> participants;
+  final Map<String, ParticlePhysics> particlePhysics;
   final double centerX;
   final double centerY;
-  final double radius;
-  final double participantSize;
+  final double screenSize;
 
   _ParticipantConnectionsPainter({
     required this.participants,
+    required this.particlePhysics,
     required this.centerX,
     required this.centerY,
-    required this.radius,
-    required this.participantSize,
+    required this.screenSize,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.15)
+      ..color = Colors.white.withOpacity(0.12)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
     final glowPaint = Paint()
-      ..color = Colors.blue.withOpacity(0.08)
+      ..color = Colors.blue.withOpacity(0.06)
       ..strokeWidth = 4
       ..style = PaintingStyle.stroke
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
 
     for (int i = 0; i < participants.length; i++) {
-      final angle = (2 * math.pi * i / participants.length) - (math.pi / 2);
+      final participant = participants[i];
+      final id = participant.identity ?? 'unknown-$i';
+      final physics = particlePhysics[id];
+
+      if (physics == null) continue;
+
+      final angle = physics.currentAngle;
+      final radius = physics.currentRadius * screenSize;
       final participantX = centerX + radius * math.cos(angle);
       final participantY = centerY + radius * math.sin(angle);
 
-      // Draw glow line
+      // Draw glow line (rope effect)
       canvas.drawLine(
         Offset(centerX, centerY),
         Offset(participantX, participantY),
@@ -1265,25 +1405,42 @@ class _ParticipantConnectionsPainter extends CustomPainter {
         paint,
       );
 
-      // Optional: Draw a small dot at connection point on participant
+      // Draw a small dot at connection point on participant
       final dotPaint = Paint()
-        ..color = Colors.white.withOpacity(0.3)
+        ..color = Colors.white.withOpacity(0.25)
         ..style = PaintingStyle.fill;
-      canvas.drawCircle(Offset(participantX, participantY), 3, dotPaint);
+      canvas.drawCircle(Offset(participantX, participantY), 2.5, dotPaint);
     }
 
-    // Draw central node circle outline
+    // Draw central node circle outline (smaller now)
     final centralPaint = Paint()
-      ..color = Colors.purple.withOpacity(0.2)
+      ..color = Colors.purple.withOpacity(0.25)
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
-    canvas.drawCircle(Offset(centerX, centerY), 85, centralPaint);
+    canvas.drawCircle(Offset(centerX, centerY), 40, centralPaint);
   }
 
   @override
   bool shouldRepaint(covariant _ParticipantConnectionsPainter oldDelegate) {
-    return participants.length != oldDelegate.participants.length;
+    return true; // Always repaint for smooth physics animation
   }
+}
+
+// Particle physics data class
+class ParticlePhysics {
+  double targetAngle;      // Target orbital angle
+  double currentAngle;     // Current angle position
+  double currentRadius;    // Current radius (normalized 0-1)
+  double velocityAngle;    // Angular velocity
+  double velocityRadius;   // Radial velocity
+
+  ParticlePhysics({
+    required this.targetAngle,
+    required this.currentAngle,
+    required this.currentRadius,
+    required this.velocityAngle,
+    required this.velocityRadius,
+  });
 }
 
 // Room info model
