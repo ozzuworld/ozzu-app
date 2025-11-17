@@ -317,20 +317,12 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF000000), // Pure black
       extendBodyBehindAppBar: true,
       appBar: _isConnected ? null : _buildAppBar(),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF0a0a0f),
-              const Color(0xFF1a1a2e).withOpacity(0.8),
-              const Color(0xFF16213e).withOpacity(0.6),
-            ],
-          ),
+        decoration: const BoxDecoration(
+          color: Color(0xFF000000), // Pure black, no gradient
         ),
         child: _isConnected ? _buildRoomView() : _buildRoomSelectionView(),
       ),
@@ -875,29 +867,41 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Participant grid layout with floating effect
+  // Participant grid layout with floating crystal effect
   Widget _buildParticipantGrid() {
     final participantCount = _participants.length;
 
-    // Calculate grid dimensions based on participant count
+    // Calculate grid dimensions - smaller tiles, more space
     int columns = 1;
-    if (participantCount == 2) {
+    double childAspectRatio = 1.0;
+
+    if (participantCount == 1) {
+      columns = 1;
+      childAspectRatio = 0.85; // Portrait for single person
+    } else if (participantCount == 2) {
       columns = 2;
+      childAspectRatio = 0.9;
     } else if (participantCount <= 4) {
       columns = 2;
+      childAspectRatio = 1.0;
+    } else if (participantCount <= 6) {
+      columns = 3;
+      childAspectRatio = 0.95;
     } else if (participantCount <= 9) {
       columns = 3;
+      childAspectRatio = 1.0;
     } else {
       columns = 4;
+      childAspectRatio = 1.0;
     }
 
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 60, 20, 120),
+      padding: const EdgeInsets.fromLTRB(28, 80, 28, 140), // More padding
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: participantCount == 1 ? 0.7 : 0.9,
+        crossAxisSpacing: 24, // Increased spacing for floating effect
+        mainAxisSpacing: 24, // Increased spacing for floating effect
+        childAspectRatio: childAspectRatio,
       ),
       itemCount: participantCount,
       itemBuilder: (context, index) {
@@ -906,7 +910,7 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Floating participant tile
+  // Floating crystal participant tile
   Widget _buildParticipantTile(Participant participant) {
     final isLocal = participant == _room?.localParticipant;
     final identity = participant.identity ?? 'Unknown';
@@ -924,123 +928,146 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Video or placeholder
-            if (videoTrack != null)
-              VideoTrackRenderer(videoTrack)
-            else
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              // Soft glow for floating effect
+              BoxShadow(
+                color: isLocal
+                    ? Colors.blue.withOpacity(0.3)
+                    : Colors.white.withOpacity(0.1),
+                blurRadius: 30,
+                spreadRadius: -5,
+              ),
+              // Speaking glow
+              if (isSpeaking)
+                BoxShadow(
+                  color: Colors.green.shade400.withOpacity(0.5),
+                  blurRadius: 40,
+                  spreadRadius: 0,
                 ),
-                child: Center(
-                  child: Icon(
-                    Icons.person_outline,
-                    size: 40,
-                    color: Colors.white.withOpacity(0.3),
+            ],
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Video or placeholder with pure black background
+              if (videoTrack != null)
+                VideoTrackRenderer(videoTrack)
+              else
+                Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF000000), // Pure black
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.person_outline,
+                      size: 36,
+                      color: Colors.white.withOpacity(0.15),
+                    ),
                   ),
                 ),
-              ),
 
-            // Speaking indicator glow
-            if (isSpeaking)
+              // Ultra-thin crystal border
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: Colors.green.shade400,
-                      width: 3,
+                      color: isLocal
+                          ? Colors.blue.withOpacity(0.3)
+                          : Colors.white.withOpacity(0.08),
+                      width: 1,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.green.shade400.withOpacity(0.6),
-                        blurRadius: 20,
-                        spreadRadius: 2,
-                      ),
-                    ],
                   ),
                 ),
               ),
 
-            // Minimal border overlay
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isLocal
-                        ? Colors.blue.withOpacity(0.4)
-                        : Colors.white.withOpacity(0.15),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-            ),
-
-            // Minimal identity label
-            Positioned(
-              bottom: 10,
-              left: 10,
-              right: 10,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              // Speaking indicator - thin crystal glow
+              if (isSpeaking)
+                Positioned.fill(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.4),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(24),
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.1),
-                        width: 1,
+                        color: Colors.green.shade400.withOpacity(0.8),
+                        width: 2,
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isLocal) ...[
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade400,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        if (isSpeaking) ...[
-                          Icon(
-                            Icons.graphic_eq,
-                            color: Colors.green.shade400,
-                            size: 14,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Flexible(
-                          child: Text(
-                            identity,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
+                  ),
+                ),
+
+              // Minimal floating name label
+              Positioned(
+                bottom: 12,
+                left: 12,
+                right: 12,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.06),
+                          width: 1,
                         ),
-                      ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isLocal) ...[
+                            Container(
+                              width: 5,
+                              height: 5,
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade400.withOpacity(0.8),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blue.shade400.withOpacity(0.4),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          if (isSpeaking) ...[
+                            Icon(
+                              Icons.graphic_eq,
+                              color: Colors.green.shade400,
+                              size: 13,
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Flexible(
+                            child: Text(
+                              identity,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.85),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.3,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
