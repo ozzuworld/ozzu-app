@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:logger/logger.dart';
 import 'package:wireguard_flutter/wireguard_flutter.dart';
 import 'headscale_service.dart';
+import 'keycloak_service.dart';
 
 /// Manager for WireGuard VPN connections
 /// Handles tunnel setup, connection state, and statistics
@@ -62,8 +63,8 @@ class VPNManager {
     }
   }
 
-  /// Connect to VPN using Tailscale with Headscale server
-  /// This launches the Tailscale app which handles OIDC and VPN automatically
+  /// Connect to VPN using WireGuard with Headscale
+  /// Seamlessly authenticates using Keycloak and connects
   Future<bool> connect() async {
     if (_currentState == VPNConnectionState.connected ||
         _currentState == VPNConnectionState.connecting) {
@@ -75,41 +76,55 @@ class VPNManager {
     _headscaleService.updateConnectionStatus(ConnectionStatus.connecting);
 
     try {
-      _logger.d('Launching Tailscale for VPN connection');
+      _logger.d('Starting VPN connection with Headscale');
 
-      // Check if Tailscale is installed
-      final installed = await _headscaleService.isTailscaleInstalled();
-      if (!installed) {
-        _logger.e('Tailscale not installed');
-        _updateState(VPNConnectionState.error);
-        _headscaleService.updateConnectionStatus(ConnectionStatus.error);
-        throw Exception('Tailscale app required. Please install from app store.');
+      // Get Keycloak access token
+      final authService = AuthService();
+      final accessToken = await authService.getAccessToken();
+
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception('Not authenticated. Please log in first.');
       }
 
-      // Launch Tailscale with Headscale server configuration
-      final registrationResult = await _headscaleService.registerWithOIDC();
+      _logger.d('Got access token, registering device with Headscale');
 
-      if (!registrationResult.success) {
-        throw Exception(registrationResult.error ?? 'Failed to launch Tailscale');
+      // Register device with Headscale using Keycloak token
+      // This will return WireGuard configuration
+      final wgConfig = await _headscaleService.registerDevice(accessToken);
+
+      if (wgConfig == null) {
+        throw Exception('Failed to get WireGuard configuration from Headscale');
       }
 
-      _logger.d('Tailscale launched successfully');
+      _logger.d('Device registered, starting WireGuard tunnel');
+      _logger.d('Assigned IP: ${wgConfig.address}');
 
-      // Note: We don't directly control the VPN connection since Tailscale handles it
-      // The user will complete authentication in the Tailscale app
-      // For now, mark as connected since Tailscale is handling the VPN
+      // Initialize WireGuard interface
+      await _wireguardFlutterPlugin.initialize(interfaceName: 'ozzu_wg0');
+
+      // Start VPN with WireGuard configuration
+      await _wireguardFlutterPlugin.startVpn(
+        serverAddress: wgConfig.serverEndpoint,
+        wgQuickConfig: wgConfig.toWgQuickConfig(),
+        providerBundleIdentifier: 'com.example.livekitvoiceapp',
+      );
+
+      _logger.d('WireGuard tunnel started successfully');
+
+      // Update connection state
       _connectionStartTime = DateTime.now();
-      _assignedIpAddress = 'Managed by Tailscale';
+      _assignedIpAddress = wgConfig.address;
+      _currentTunnelName = 'ozzu_wg0';
 
       _updateState(VPNConnectionState.connected);
       _headscaleService.updateConnectionStatus(ConnectionStatus.connected);
 
-      // Start monitoring (though stats will be limited)
+      // Start monitoring
       _startStatsMonitoring();
 
       return true;
     } catch (e) {
-      _logger.e('Failed to launch Tailscale: $e');
+      _logger.e('Failed to connect VPN: $e');
       _updateState(VPNConnectionState.error);
       _headscaleService.updateConnectionStatus(ConnectionStatus.error);
       rethrow; // Re-throw so UI can handle specific errors
