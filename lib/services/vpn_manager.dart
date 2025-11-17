@@ -112,7 +112,7 @@ class VPNManager {
       _logger.e('Failed to launch Tailscale: $e');
       _updateState(VPNConnectionState.error);
       _headscaleService.updateConnectionStatus(ConnectionStatus.error);
-      return false;
+      rethrow; // Re-throw so UI can handle specific errors
     }
   }
 
