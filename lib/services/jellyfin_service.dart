@@ -220,6 +220,62 @@ class JellyfinService {
         'TranscodingProtocol=hls';
   }
 
+  // Get seasons for a TV show
+  Future<List<dynamic>> getSeasons(String seriesId) async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    try {
+      _logger.i('📺 Fetching seasons for series: $seriesId');
+      final response = await http.get(
+        Uri.parse('$baseUrl/Shows/$seriesId/Seasons?userId=$_userId&Fields=Overview'),
+        headers: _getHeaders(),
+      );
+
+      _logger.i('📺 Seasons response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['Items'] ?? [];
+        _logger.i('📺 Found ${items.length} seasons');
+        return items;
+      }
+      return [];
+    } catch (e) {
+      _logger.e('❌ Error fetching seasons: $e');
+      return [];
+    }
+  }
+
+  // Get episodes for a season
+  Future<List<dynamic>> getEpisodes(String seriesId, String seasonId) async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    try {
+      _logger.i('📺 Fetching episodes for season: $seasonId');
+      final response = await http.get(
+        Uri.parse('$baseUrl/Shows/$seriesId/Episodes?seasonId=$seasonId&userId=$_userId&Fields=Overview'),
+        headers: _getHeaders(),
+      );
+
+      _logger.i('📺 Episodes response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['Items'] ?? [];
+        _logger.i('📺 Found ${items.length} episodes');
+        return items;
+      }
+      return [];
+    } catch (e) {
+      _logger.e('❌ Error fetching episodes: $e');
+      return [];
+    }
+  }
+
   // Get image URL (poster/backdrop)
   String getImageUrl(String itemId, {String type = 'Primary'}) {
     return '$baseUrl/Items/$itemId/Images/$type?api_key=$_accessToken';
