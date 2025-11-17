@@ -1,8 +1,10 @@
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/jellyfin_service.dart';
 import '../services/jellyseerr_service.dart';
 import '../services/favorites_service.dart';
@@ -31,6 +33,8 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
   final JellyseerrService _jellyseerrService = JellyseerrService();
   final FavoritesService _favoritesService = FavoritesService();
   final DownloadsService _downloadsService = DownloadsService();
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  static const String _searchHistoryKey = 'search_history';
 
   bool _isLoading = true;
   String? _errorMessage;
@@ -49,9 +53,26 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
   String _searchQuery = '';
   List<dynamic> _searchResults = [];
   bool _isSearchLoading = false;
+  List<String> _searchHistory = [];
 
   // View mode state
   String _viewMode = 'row'; // 'row' or 'grid'
+  String _sortBy = 'default'; // 'default', 'alphabetical', 'recent', 'rating'
+  String? _selectedGenre; // null means 'All'
+
+  final List<String> _genres = [
+    'All',
+    'Action',
+    'Comedy',
+    'Drama',
+    'Horror',
+    'Sci-Fi',
+    'Romance',
+    'Thriller',
+    'Documentary',
+    'Animation',
+    'Fantasy',
+  ];
 
   @override
   void initState() {
@@ -59,7 +80,57 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     if (widget.startWithSearch) {
       _isSearching = true;
     }
+    _loadSearchHistory();
     _initialize();
+  }
+
+  Future<void> _loadSearchHistory() async {
+    final historyJson = await _storage.read(key: _searchHistoryKey);
+    if (historyJson != null) {
+      final List<dynamic> decoded = json.decode(historyJson);
+      setState(() {
+        _searchHistory = decoded.map((e) => e.toString()).toList();
+      });
+    }
+  }
+
+  Future<void> _saveSearchHistory() async {
+    await _storage.write(
+      key: _searchHistoryKey,
+      value: json.encode(_searchHistory),
+    );
+  }
+
+  Future<void> _addToSearchHistory(String query) async {
+    if (query.trim().isEmpty) return;
+
+    // Remove if already exists
+    _searchHistory.remove(query);
+    // Add to front
+    _searchHistory.insert(0, query);
+    // Keep only last 10 searches
+    if (_searchHistory.length > 10) {
+      _searchHistory = _searchHistory.sublist(0, 10);
+    }
+    await _saveSearchHistory();
+  }
+
+  Future<void> _clearSearchHistory() async {
+    setState(() {
+      _searchHistory.clear();
+    });
+    await _saveSearchHistory();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Search history cleared'),
+          backgroundColor: Colors.grey[800],
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _initialize() async {
@@ -152,6 +223,9 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     setState(() => _isSearchLoading = true);
 
     try {
+      // Add to search history
+      await _addToSearchHistory(query);
+
       final results = await Future.wait([
         _jellyfinService.search(query),
         if (!kIsWeb) _jellyseerrService.search(query) else Future.value(<dynamic>[]),
@@ -266,6 +340,11 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
                 ),
               ),
         actions: [
+          if (!_isSearching && !widget.startWithSearch && _viewMode == 'grid')
+            IconButton(
+              icon: const Icon(Icons.sort, color: Colors.white),
+              onPressed: _showSortOptions,
+            ),
           if (!_isSearching && !widget.startWithSearch)
             IconButton(
               icon: Icon(
@@ -273,9 +352,19 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
                 color: Colors.white,
               ),
               onPressed: () {
+                final newMode = _viewMode == 'row' ? 'grid' : 'row';
                 setState(() {
-                  _viewMode = _viewMode == 'row' ? 'grid' : 'row';
+                  _viewMode = newMode;
                 });
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Switched to ${newMode == 'grid' ? 'Grid' : 'Row'} view'),
+                    backgroundColor: Colors.grey[800],
+                    duration: const Duration(seconds: 1),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
               },
             ),
           if (!_isSearching && !widget.startWithSearch)
@@ -305,7 +394,58 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
               ? _buildLoadingState()
               : _errorMessage != null
                   ? _buildErrorState()
-                  : _buildContentBody(),
+                  : Column(
+                      children: [
+                        if (!widget.startWithSearch) _buildGenreFilter(),
+                        Expanded(child: _buildContentBody()),
+                      ],
+                    ),
+    );
+  }
+
+  Widget _buildGenreFilter() {
+    return Container(
+      height: 60,
+      margin: const EdgeInsets.only(top: 100), // Account for transparent AppBar
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        itemCount: _genres.length,
+        itemBuilder: (context, index) {
+          final genre = _genres[index];
+          final isSelected = _selectedGenre == null && genre == 'All' ||
+              _selectedGenre == genre;
+
+          return Container(
+            margin: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: Text(genre),
+              selected: isSelected,
+              onSelected: (selected) {
+                setState(() {
+                  if (genre == 'All') {
+                    _selectedGenre = null;
+                  } else {
+                    _selectedGenre = selected ? genre : null;
+                  }
+                });
+              },
+              backgroundColor: Colors.white.withOpacity(0.1),
+              selectedColor: Colors.blueAccent,
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : Colors.white.withOpacity(0.7),
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              checkmarkColor: Colors.white,
+              side: BorderSide(
+                color: isSelected
+                    ? Colors.blueAccent
+                    : Colors.white.withOpacity(0.2),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -430,10 +570,25 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     );
   }
 
+  bool _itemMatchesGenre(dynamic item) {
+    if (_selectedGenre == null) return true;
+
+    final genres = item['Genres'] ?? item['genres'] ?? [];
+    if (genres is List) {
+      for (var genre in genres) {
+        final genreName = genre is String ? genre : genre['name'] ?? genre['Name'] ?? '';
+        if (genreName.toString().toLowerCase().contains(_selectedGenre!.toLowerCase())) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   Widget _buildRowView() {
     return ListView(
       children: [
-        const SizedBox(height: 100), // Padding for transparent AppBar
+        // No extra padding here since genre filter already provides it
 
         // Featured section (if we have any content)
         if (_recentlyAdded.isNotEmpty)
@@ -523,41 +678,156 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     );
   }
 
+  void _showSortOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'Sort By',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildSortOption('Default Order', 'default', Icons.apps),
+              _buildSortOption('A-Z', 'alphabetical', Icons.sort_by_alpha),
+              _buildSortOption('Recently Added', 'recent', Icons.access_time),
+              _buildSortOption('Rating', 'rating', Icons.star),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSortOption(String title, String value, IconData icon) {
+    final isSelected = _sortBy == value;
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isSelected ? Colors.blueAccent : Colors.white.withOpacity(0.7),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isSelected ? Colors.blueAccent : Colors.white,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check, color: Colors.blueAccent)
+          : null,
+      onTap: () {
+        setState(() {
+          _sortBy = value;
+        });
+        Navigator.pop(context);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sorted by $title'),
+            backgroundColor: Colors.grey[800],
+            duration: const Duration(seconds: 1),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildGridView() {
     // Combine all content into a single list
     final allContent = <Map<String, dynamic>>[];
 
-    // Add all items with their category info
+    // Add all items with their category info, applying genre filter
     for (var item in _continueWatching) {
-      allContent.add({'item': item, 'isJellyfin': true, 'showProgress': true});
+      if (_itemMatchesGenre(item)) {
+        allContent.add({'item': item, 'isJellyfin': true, 'showProgress': true});
+      }
     }
     for (var item in _favorites) {
-      allContent.add({'item': item, 'isJellyfin': item.containsKey('Id')});
+      if (_itemMatchesGenre(item)) {
+        allContent.add({'item': item, 'isJellyfin': item.containsKey('Id')});
+      }
     }
     for (var item in _recentlyAdded) {
-      allContent.add({'item': item, 'isJellyfin': true});
+      if (_itemMatchesGenre(item)) {
+        allContent.add({'item': item, 'isJellyfin': true});
+      }
     }
     for (var item in _trendingMovies) {
-      allContent.add({'item': item, 'isJellyfin': false});
+      if (_itemMatchesGenre(item)) {
+        allContent.add({'item': item, 'isJellyfin': false});
+      }
     }
     for (var item in _trendingTV) {
-      allContent.add({'item': item, 'isJellyfin': false});
+      if (_itemMatchesGenre(item)) {
+        allContent.add({'item': item, 'isJellyfin': false});
+      }
     }
     for (var item in _popularMovies) {
-      allContent.add({'item': item, 'isJellyfin': false});
+      if (_itemMatchesGenre(item)) {
+        allContent.add({'item': item, 'isJellyfin': false});
+      }
     }
     for (var item in _movies) {
-      allContent.add({'item': item, 'isJellyfin': true});
+      if (_itemMatchesGenre(item)) {
+        allContent.add({'item': item, 'isJellyfin': true});
+      }
     }
     for (var item in _tvShows) {
-      allContent.add({'item': item, 'isJellyfin': true});
+      if (_itemMatchesGenre(item)) {
+        allContent.add({'item': item, 'isJellyfin': true});
+      }
+    }
+
+    // Apply sorting
+    if (_sortBy == 'alphabetical') {
+      allContent.sort((a, b) {
+        final aTitle = a['item']['Name'] ?? a['item']['title'] ?? a['item']['name'] ?? '';
+        final bTitle = b['item']['Name'] ?? b['item']['title'] ?? b['item']['name'] ?? '';
+        return aTitle.toString().toLowerCase().compareTo(bTitle.toString().toLowerCase());
+      });
+    } else if (_sortBy == 'recent') {
+      allContent.sort((a, b) {
+        final aDate = a['item']['PremiereDate'] ?? a['item']['DateCreated'] ?? a['item']['first_air_date'] ?? a['item']['release_date'] ?? '';
+        final bDate = b['item']['PremiereDate'] ?? b['item']['DateCreated'] ?? b['item']['first_air_date'] ?? b['item']['release_date'] ?? '';
+        return bDate.toString().compareTo(aDate.toString());
+      });
+    } else if (_sortBy == 'rating') {
+      allContent.sort((a, b) {
+        final aRating = (a['item']['CommunityRating'] ?? a['item']['vote_average'] ?? 0.0) as num;
+        final bRating = (b['item']['CommunityRating'] ?? b['item']['vote_average'] ?? 0.0) as num;
+        return bRating.compareTo(aRating);
+      });
     }
 
     return CustomScrollView(
       slivers: [
-        const SliverToBoxAdapter(
-          child: SizedBox(height: 100), // Padding for transparent AppBar
-        ),
+        // No top padding needed since genre filter handles it
         SliverPadding(
           padding: const EdgeInsets.all(16),
           sliver: SliverGrid(
@@ -909,6 +1179,17 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     );
   }
 
+  String _formatTimeRemaining(int totalMinutes, double progressPercent) {
+    final remainingMinutes = (totalMinutes * (1 - progressPercent)).round();
+    if (remainingMinutes < 60) {
+      return '${remainingMinutes}m left';
+    } else {
+      final hours = remainingMinutes ~/ 60;
+      final minutes = remainingMinutes % 60;
+      return '${hours}h ${minutes}m left';
+    }
+  }
+
   Widget _buildContentCard(dynamic item, bool isJellyfin, {bool showProgress = false}) {
     final imageUrl = isJellyfin
         ? _jellyfinService.getImageUrl(item['Id'])
@@ -916,8 +1197,16 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
 
     // Get progress percentage if available
     double? progressPercent;
+    String? timeRemaining;
     if (showProgress && item['UserData'] != null) {
       progressPercent = (item['UserData']['PlayedPercentage'] ?? 0.0).toDouble() / 100.0;
+
+      // Calculate time remaining
+      final runTimeTicks = item['RunTimeTicks'];
+      if (runTimeTicks != null && progressPercent != null && progressPercent > 0) {
+        final totalMinutes = (runTimeTicks / 600000000).round(); // Convert ticks to minutes
+        timeRemaining = _formatTimeRemaining(totalMinutes, progressPercent);
+      }
     }
 
     // Create unique hero tag
@@ -957,26 +1246,55 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
                   bottom: 0,
                   left: 0,
                   right: 0,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Progress bar
-                      Container(
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
-                        ),
-                        child: FractionallySizedBox(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: progressPercent,
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.blueAccent,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.8),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(6),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Time remaining text
+                        if (timeRemaining != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              timeRemaining,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        // Progress bar
+                        Container(
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                          child: FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: progressPercent,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.blueAccent,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
             ],
@@ -1139,32 +1457,103 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     );
   }
 
+  Widget _buildRecentSearches() {
+    if (_searchHistory.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search,
+              size: 64,
+              color: Colors.white.withOpacity(0.3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Search for movies & TV shows',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent Searches',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.9),
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _clearSearchHistory,
+              icon: Icon(
+                Icons.clear_all,
+                color: Colors.white.withOpacity(0.7),
+                size: 18,
+              ),
+              label: Text(
+                'Clear',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ..._searchHistory.map((query) {
+          return ListTile(
+            leading: Icon(
+              Icons.history,
+              color: Colors.white.withOpacity(0.5),
+            ),
+            title: Text(
+              query,
+              style: const TextStyle(color: Colors.white),
+            ),
+            trailing: IconButton(
+              icon: Icon(
+                Icons.arrow_outward,
+                color: Colors.white.withOpacity(0.5),
+                size: 20,
+              ),
+              onPressed: () {
+                setState(() {
+                  _searchQuery = query;
+                });
+                _performSearch(query);
+              },
+            ),
+            onTap: () {
+              setState(() {
+                _searchQuery = query;
+              });
+              _performSearch(query);
+            },
+          );
+        }).toList(),
+      ],
+    );
+  }
+
   Widget _buildSearchBody() {
     return Container(
       padding: const EdgeInsets.only(top: 100),
       child: _isSearchLoading
           ? const Center(child: CircularProgressIndicator())
           : _searchQuery.trim().isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.search,
-                        size: 64,
-                        color: Colors.white.withOpacity(0.3),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Search for movies & TV shows',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
+              ? _buildRecentSearches()
               : _searchResults.isEmpty
                   ? Center(
                       child: Column(
