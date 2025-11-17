@@ -10,6 +10,7 @@ import '../services/keycloak_service.dart';
 import 'login_screen.dart';
 import 'main_navigation_screen.dart';
 import 'music_browse_screen.dart';
+import 'talk_screen.dart';
 
 class VoiceCallScreen extends StatefulWidget {
   final bool startUnmuted;
@@ -393,16 +394,17 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   List<Widget> _buildMainMenuItems() {
     return [
-      // Connection
+      // Talk
       _buildGlassMenuItem(
-        icon: Icons.wifi,
-        label: 'Connection',
-        statusColor: isConnected
-            ? Colors.greenAccent
-            : (isConnecting ? Colors.orangeAccent : Colors.redAccent),
+        icon: Icons.groups,
+        label: 'Talk',
+        statusColor: Colors.blueAccent,
         onTap: () {
           setState(() => _showMenu = false);
-          _showConnectionDetails();
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const TalkScreen()),
+          );
         },
       ),
 
