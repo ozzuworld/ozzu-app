@@ -444,6 +444,192 @@ class JellyfinService {
     return '$baseUrl/Items/$itemId/Images/$type?api_key=$_accessToken';
   }
 
+  // ==================== MUSIC METHODS ====================
+
+  // Get all music albums
+  Future<List<dynamic>> getAlbums() async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    try {
+      _logger.i('🎵 Fetching albums from Jellyfin...');
+      final response = await http.get(
+        Uri.parse('$baseUrl/Users/$_userId/Items?IncludeItemTypes=MusicAlbum&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,Genres,DateCreated&ImageTypeLimit=1&SortBy=DateCreated&SortOrder=Descending'),
+        headers: _getHeaders(),
+      );
+
+      _logger.i('🎵 Albums response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['Items'] ?? [];
+        _logger.i('🎵 Found ${items.length} albums');
+        if (items.isNotEmpty) {
+          _logger.d('🎵 First album: ${items[0]['Name']} (ID: ${items[0]['Id']})');
+        }
+        return items;
+      }
+      _logger.w('🎵 Failed to fetch albums: ${response.statusCode}');
+      return [];
+    } catch (e) {
+      _logger.e('❌ Error fetching albums: $e');
+      return [];
+    }
+  }
+
+  // Get all artists
+  Future<List<dynamic>> getArtists() async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    try {
+      _logger.i('🎤 Fetching artists from Jellyfin...');
+      final response = await http.get(
+        Uri.parse('$baseUrl/Artists?userId=$_userId&Recursive=true&Fields=Overview,Genres&ImageTypeLimit=1'),
+        headers: _getHeaders(),
+      );
+
+      _logger.i('🎤 Artists response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['Items'] ?? [];
+        _logger.i('🎤 Found ${items.length} artists');
+        return items;
+      }
+      _logger.w('🎤 Failed to fetch artists: ${response.statusCode}');
+      return [];
+    } catch (e) {
+      _logger.e('❌ Error fetching artists: $e');
+      return [];
+    }
+  }
+
+  // Get playlists
+  Future<List<dynamic>> getPlaylists() async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    try {
+      _logger.i('📋 Fetching playlists from Jellyfin...');
+      final response = await http.get(
+        Uri.parse('$baseUrl/Users/$_userId/Items?IncludeItemTypes=Playlist&Recursive=true&Fields=PrimaryImageAspectRatio,Overview&ImageTypeLimit=1'),
+        headers: _getHeaders(),
+      );
+
+      _logger.i('📋 Playlists response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['Items'] ?? [];
+        _logger.i('📋 Found ${items.length} playlists');
+        return items;
+      }
+      return [];
+    } catch (e) {
+      _logger.e('❌ Error fetching playlists: $e');
+      return [];
+    }
+  }
+
+  // Get tracks/songs from an album
+  Future<List<dynamic>> getAlbumTracks(String albumId) async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    try {
+      _logger.i('🎵 Fetching tracks for album: $albumId');
+      final response = await http.get(
+        Uri.parse('$baseUrl/Users/$_userId/Items?ParentId=$albumId&Fields=AudioInfo,MediaStreams'),
+        headers: _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['Items'] ?? [];
+        _logger.i('🎵 Found ${items.length} tracks');
+        return items;
+      }
+      return [];
+    } catch (e) {
+      _logger.e('❌ Error fetching album tracks: $e');
+      return [];
+    }
+  }
+
+  // Get recently played music
+  Future<List<dynamic>> getRecentlyPlayedMusic() async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    try {
+      _logger.i('🎵 Fetching recently played music...');
+      final response = await http.get(
+        Uri.parse('$baseUrl/Users/$_userId/Items?IncludeItemTypes=MusicAlbum&Recursive=true&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&Limit=10&Fields=PrimaryImageAspectRatio'),
+        headers: _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['Items'] ?? [];
+        _logger.i('🎵 Found ${items.length} recently played albums');
+        return items;
+      }
+      return [];
+    } catch (e) {
+      _logger.e('❌ Error fetching recently played: $e');
+      return [];
+    }
+  }
+
+  // Get audio stream URL
+  String getAudioStreamUrl(String itemId) {
+    // Direct stream for audio - serve the file as-is
+    return '$baseUrl/Audio/$itemId/stream?'
+        'api_key=$_accessToken&'
+        'Static=true';
+  }
+
+  // Search for music (artists, albums, tracks)
+  Future<List<dynamic>> searchMusic(String query) async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    if (query.trim().isEmpty) {
+      return [];
+    }
+
+    try {
+      _logger.i('🔍 Searching music for: $query');
+      final response = await http.get(
+        Uri.parse('$baseUrl/Users/$_userId/Items?'
+            'searchTerm=$query&'
+            'Recursive=true&'
+            'IncludeItemTypes=MusicAlbum,MusicArtist,Audio&'
+            'Fields=PrimaryImageAspectRatio,Overview&'
+            'ImageTypeLimit=1'),
+        headers: _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['Items'] ?? [];
+        _logger.i('🔍 Found ${items.length} music results');
+        return items;
+      }
+      return [];
+    } catch (e) {
+      _logger.e('❌ Error searching music: $e');
+      return [];
+    }
+  }
+
   // Logout
   Future<void> logout() async {
     await _storage.delete(key: 'jellyfin_token');
