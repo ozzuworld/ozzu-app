@@ -1,22 +1,31 @@
 import 'package:flutter/material.dart';
-import 'media_screen.dart';
+import 'tv_browse_screen.dart';
 import 'downloads_screen.dart';
 import 'settings_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({super.key});
+  final int initialTab;
+
+  const MainNavigationScreen({super.key, this.initialTab = 0});
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
-  int _selectedIndex = 0;
-  final PageController _pageController = PageController();
+  late int _selectedIndex;
+  late final PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialTab;
+    _pageController = PageController(initialPage: widget.initialTab);
+  }
 
   final List<Widget> _screens = [
-    const MediaScreen(showBackButton: false),
-    const MediaScreen(startWithSearch: true, showBackButton: false),
+    const TVBrowseScreen(showBackButton: false),
+    const TVBrowseScreen(startWithSearch: true, showBackButton: false),
     const DownloadsScreen(),
     const SettingsScreen(showBackButton: false),
   ];
@@ -69,9 +78,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           onTap: _onItemTapped,
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.play_circle_outline),
-              activeIcon: Icon(Icons.play_circle),
-              label: 'Media',
+              icon: Icon(Icons.tv_outlined),
+              activeIcon: Icon(Icons.tv),
+              label: 'TV',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.search_outlined),
