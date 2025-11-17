@@ -719,12 +719,12 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Room view (when connected) - Ultra minimalist floating design
+  // Room view (when connected) - Gaming-style radial network
   Widget _buildRoomView() {
     return SafeArea(
       child: Stack(
         children: [
-          // Participants grid with floating effect
+          // Radial participant network with floating effect
           Positioned.fill(
             child: _participants.isEmpty
                 ? _buildWaitingState()
@@ -744,14 +744,6 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
             top: 16,
             left: 16,
             child: _buildBackButton(),
-          ),
-
-          // Room name floating top center
-          Positioned(
-            top: 16,
-            left: 0,
-            right: 0,
-            child: _buildRoomNameBadge(),
           ),
         ],
       ),
@@ -790,56 +782,6 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Floating room name badge
-  Widget _buildRoomNameBadge() {
-    return Center(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.1),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.circle,
-                  size: 8,
-                  color: Colors.green.shade400,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _currentRoomName ?? 'Room',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '• ${_participants.length}',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   // Waiting state
   Widget _buildWaitingState() {
     return Center(
@@ -867,51 +809,173 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Participant grid layout with floating crystal effect
+  // Gaming-style radial network layout - participants orbit around room center
   Widget _buildParticipantGrid() {
-    final participantCount = _participants.length;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final centerX = constraints.maxWidth / 2;
+        final centerY = constraints.maxHeight / 2;
+        final participantCount = _participants.length;
 
-    // Calculate grid dimensions - smaller tiles, more space
-    int columns = 1;
-    double childAspectRatio = 1.0;
+        // Size of participant squares (small gaming-style)
+        const participantSize = 100.0;
 
-    if (participantCount == 1) {
-      columns = 1;
-      childAspectRatio = 0.85; // Portrait for single person
-    } else if (participantCount == 2) {
-      columns = 2;
-      childAspectRatio = 0.9;
-    } else if (participantCount <= 4) {
-      columns = 2;
-      childAspectRatio = 1.0;
-    } else if (participantCount <= 6) {
-      columns = 3;
-      childAspectRatio = 0.95;
-    } else if (participantCount <= 9) {
-      columns = 3;
-      childAspectRatio = 1.0;
-    } else {
-      columns = 4;
-      childAspectRatio = 1.0;
-    }
+        // Radius for participant orbit - scales with screen size
+        final baseRadius = math.min(constraints.maxWidth, constraints.maxHeight) * 0.32;
 
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(28, 80, 28, 140), // More padding
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columns,
-        crossAxisSpacing: 24, // Increased spacing for floating effect
-        mainAxisSpacing: 24, // Increased spacing for floating effect
-        childAspectRatio: childAspectRatio,
-      ),
-      itemCount: participantCount,
-      itemBuilder: (context, index) {
-        return _buildParticipantTile(_participants[index]);
+        return Stack(
+          children: [
+            // Connection lines from participants to center
+            CustomPaint(
+              size: Size(constraints.maxWidth, constraints.maxHeight),
+              painter: _ParticipantConnectionsPainter(
+                participants: _participants,
+                centerX: centerX,
+                centerY: centerY,
+                radius: baseRadius,
+                participantSize: participantSize,
+              ),
+            ),
+
+            // Central room name box
+            Positioned(
+              left: centerX - 80,
+              top: centerY - 40,
+              child: _buildCentralRoomNode(),
+            ),
+
+            // Participant nodes arranged in circle
+            for (int i = 0; i < participantCount; i++)
+              _buildRadialParticipant(
+                participant: _participants[i],
+                index: i,
+                total: participantCount,
+                centerX: centerX,
+                centerY: centerY,
+                radius: baseRadius,
+                size: participantSize,
+              ),
+          ],
+        );
       },
     );
   }
 
-  // Floating crystal participant tile
-  Widget _buildParticipantTile(Participant participant) {
+  // Central room node (skill tree center)
+  Widget _buildCentralRoomNode() {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.elasticOut,
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: value,
+          child: child,
+        );
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            width: 160,
+            height: 80,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.purple.withOpacity(0.3),
+                  Colors.blue.withOpacity(0.2),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.3),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.purple.withOpacity(0.3),
+                  blurRadius: 30,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.hub_rounded,
+                  color: Colors.white.withOpacity(0.9),
+                  size: 24,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _currentRoomName ?? 'Room',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.95),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${_participants.length} connected',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Radial participant node
+  Widget _buildRadialParticipant({
+    required Participant participant,
+    required int index,
+    required int total,
+    required double centerX,
+    required double centerY,
+    required double radius,
+    required double size,
+  }) {
+    // Calculate angle for even distribution around circle
+    final angle = (2 * math.pi * index / total) - (math.pi / 2);
+    final x = centerX + radius * math.cos(angle) - (size / 2);
+    final y = centerY + radius * math.sin(angle) - (size / 2);
+
+    return Positioned(
+      left: x,
+      top: y,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: Duration(milliseconds: 400 + (index * 100)),
+        curve: Curves.elasticOut,
+        builder: (context, value, child) {
+          return Transform.scale(
+            scale: value,
+            child: Opacity(
+              opacity: value,
+              child: child,
+            ),
+          );
+        },
+        child: _buildSmallParticipantSquare(participant, size),
+      ),
+    );
+  }
+
+  // Small gaming-style participant square
+  Widget _buildSmallParticipantSquare(Participant participant, double size) {
     final isLocal = participant == _room?.localParticipant;
     final identity = participant.identity ?? 'Unknown';
     final isSpeaking = participant.isSpeaking;
@@ -925,139 +989,116 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
       }
     }
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+    return Container(
+      width: size,
+      height: size,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [
-              // Soft glow for floating effect
               BoxShadow(
                 color: isLocal
-                    ? Colors.blue.withOpacity(0.3)
-                    : Colors.white.withOpacity(0.1),
-                blurRadius: 30,
-                spreadRadius: -5,
+                    ? Colors.blue.withOpacity(0.4)
+                    : isSpeaking
+                        ? Colors.green.withOpacity(0.5)
+                        : Colors.white.withOpacity(0.2),
+                blurRadius: isSpeaking ? 25 : 15,
+                spreadRadius: isSpeaking ? 2 : 0,
               ),
-              // Speaking glow
-              if (isSpeaking)
-                BoxShadow(
-                  color: Colors.green.shade400.withOpacity(0.5),
-                  blurRadius: 40,
-                  spreadRadius: 0,
-                ),
             ],
           ),
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Video or placeholder with pure black background
+              // Video or placeholder
               if (videoTrack != null)
                 VideoTrackRenderer(videoTrack)
               else
                 Container(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF000000), // Pure black
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF000000),
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.grey.shade900,
+                        Colors.black,
+                      ],
+                    ),
                   ),
                   child: Center(
                     child: Icon(
                       Icons.person_outline,
-                      size: 36,
-                      color: Colors.white.withOpacity(0.15),
+                      size: 32,
+                      color: Colors.white.withOpacity(0.3),
                     ),
                   ),
                 ),
 
-              // Ultra-thin crystal border
+              // Border glow
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: isLocal
-                          ? Colors.blue.withOpacity(0.3)
-                          : Colors.white.withOpacity(0.08),
-                      width: 1,
+                          ? Colors.blue.withOpacity(0.6)
+                          : isSpeaking
+                              ? Colors.green.withOpacity(0.8)
+                              : Colors.white.withOpacity(0.2),
+                      width: isSpeaking ? 3 : 2,
                     ),
                   ),
                 ),
               ),
 
-              // Speaking indicator - thin crystal glow
-              if (isSpeaking)
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: Colors.green.shade400.withOpacity(0.8),
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Minimal floating name label
+              // Name label overlay (bottom)
               Positioned(
-                bottom: 12,
-                left: 12,
-                right: 12,
+                bottom: 0,
+                left: 0,
+                right: 0,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
                   child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.06),
-                          width: 1,
-                        ),
+                        color: Colors.black.withOpacity(0.7),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          if (isLocal) ...[
+                          if (isLocal)
                             Container(
-                              width: 5,
-                              height: 5,
+                              width: 4,
+                              height: 4,
+                              margin: const EdgeInsets.only(right: 4),
                               decoration: BoxDecoration(
-                                color: Colors.blue.shade400.withOpacity(0.8),
+                                color: Colors.blue.shade400,
                                 shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.blue.shade400.withOpacity(0.4),
-                                    blurRadius: 8,
-                                    spreadRadius: 1,
-                                  ),
-                                ],
                               ),
                             ),
-                            const SizedBox(width: 6),
-                          ],
-                          if (isSpeaking) ...[
+                          if (isSpeaking)
                             Icon(
                               Icons.graphic_eq,
                               color: Colors.green.shade400,
-                              size: 13,
+                              size: 10,
                             ),
-                            const SizedBox(width: 4),
-                          ],
+                          const SizedBox(width: 2),
                           Flexible(
                             child: Text(
-                              identity,
+                              identity.length > 8 ? '${identity.substring(0, 8)}...' : identity,
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.85),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 0.3,
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
                               ),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
+                              textAlign: TextAlign.center,
                             ),
                           ),
                         ],
@@ -1072,6 +1113,7 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
       ),
     );
   }
+
 
   // Ultra minimalist floating controls
   Widget _buildFloatingControls() {
@@ -1172,6 +1214,75 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+}
+
+// Custom painter for connection lines (skill tree style)
+class _ParticipantConnectionsPainter extends CustomPainter {
+  final List<Participant> participants;
+  final double centerX;
+  final double centerY;
+  final double radius;
+  final double participantSize;
+
+  _ParticipantConnectionsPainter({
+    required this.participants,
+    required this.centerX,
+    required this.centerY,
+    required this.radius,
+    required this.participantSize,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.15)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    final glowPaint = Paint()
+      ..color = Colors.blue.withOpacity(0.08)
+      ..strokeWidth = 4
+      ..style = PaintingStyle.stroke
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+
+    for (int i = 0; i < participants.length; i++) {
+      final angle = (2 * math.pi * i / participants.length) - (math.pi / 2);
+      final participantX = centerX + radius * math.cos(angle);
+      final participantY = centerY + radius * math.sin(angle);
+
+      // Draw glow line
+      canvas.drawLine(
+        Offset(centerX, centerY),
+        Offset(participantX, participantY),
+        glowPaint,
+      );
+
+      // Draw main line
+      canvas.drawLine(
+        Offset(centerX, centerY),
+        Offset(participantX, participantY),
+        paint,
+      );
+
+      // Optional: Draw a small dot at connection point on participant
+      final dotPaint = Paint()
+        ..color = Colors.white.withOpacity(0.3)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(participantX, participantY), 3, dotPaint);
+    }
+
+    // Draw central node circle outline
+    final centralPaint = Paint()
+      ..color = Colors.purple.withOpacity(0.2)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    canvas.drawCircle(Offset(centerX, centerY), 85, centralPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ParticipantConnectionsPainter oldDelegate) {
+    return participants.length != oldDelegate.participants.length;
   }
 }
 
