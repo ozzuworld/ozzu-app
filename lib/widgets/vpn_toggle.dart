@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../services/vpn_manager.dart';
 import '../services/headscale_service.dart';
+import 'package:logger/logger.dart';
 
 /// VPN Toggle Widget
 /// Provides a toggle switch to connect/disconnect from VPN with seamless OIDC SSO
@@ -15,11 +16,13 @@ class VPNToggle extends StatefulWidget {
 class _VPNToggleState extends State<VPNToggle> {
   final VPNManager _vpnManager = VPNManager();
   final HeadscaleService _headscaleService = HeadscaleService();
+  final Logger _logger = Logger();
 
   VPNConnectionState _connectionState = VPNConnectionState.disconnected;
   String? _vpnIP;
   Duration? _connectionDuration;
   Timer? _updateTimer;
+  bool _tailscaleInstalled = false;
 
   StreamSubscription<VPNConnectionState>? _connectionSubscription;
 
@@ -32,6 +35,12 @@ class _VPNToggleState extends State<VPNToggle> {
   Future<void> _initializeVPN() async {
     await _vpnManager.initialize();
     await _headscaleService.initialize();
+
+    // Check if Tailscale is installed
+    final installed = await _headscaleService.isTailscaleInstalled();
+    setState(() {
+      _tailscaleInstalled = installed;
+    });
 
     // Listen to connection state changes
     _connectionSubscription = _vpnManager.connectionStateStream.listen((state) {
@@ -73,7 +82,13 @@ class _VPNToggleState extends State<VPNToggle> {
 
   Future<void> _handleToggle(bool value) async {
     if (value) {
-      // Connect to VPN
+      // Check if Tailscale is installed first
+      if (!_tailscaleInstalled) {
+        _showTailscaleInstallDialog();
+        return;
+      }
+
+      // Connect to VPN (launches Tailscale)
       try {
         final success = await _vpnManager.connect();
 
@@ -82,9 +97,9 @@ class _VPNToggleState extends State<VPNToggle> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('VPN connected successfully!'),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
+                content: Text('Tailscale launched! Complete setup in the Tailscale app.'),
+                backgroundColor: Colors.blue,
+                duration: Duration(seconds: 4),
               ),
             );
           }
@@ -92,7 +107,7 @@ class _VPNToggleState extends State<VPNToggle> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Failed to connect to VPN. Please try again.'),
+                content: Text('Failed to launch Tailscale. Please try again.'),
                 backgroundColor: Colors.red,
                 duration: Duration(seconds: 3),
               ),
@@ -100,47 +115,76 @@ class _VPNToggleState extends State<VPNToggle> {
           }
         }
       } catch (e) {
+        _logger.e('VPN connection error: $e');
         if (mounted) {
+          final errorMsg = e.toString().contains('Tailscale app required')
+              ? 'Tailscale app not installed'
+              : 'Error: $e';
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('VPN connection error: $e'),
+              content: Text(errorMsg),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 3),
+              action: e.toString().contains('Tailscale app required')
+                  ? SnackBarAction(
+                      label: 'Install',
+                      onPressed: () async {
+                        await _headscaleService.openTailscaleInstallPage();
+                      },
+                    )
+                  : null,
             ),
           );
         }
       }
     } else {
-      // Disconnect from VPN
-      try {
-        final success = await _vpnManager.disconnect();
-
-        _stopDurationUpdates();
-        setState(() {
-          _connectionDuration = null;
-        });
-
-        if (success && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('VPN disconnected'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('VPN disconnection error: $e'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
+      // Note: We can't disconnect Tailscale from our app
+      // User needs to do it in the Tailscale app
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Open Tailscale app to disconnect'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     }
+  }
+
+  void _showTailscaleInstallDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tailscale Required'),
+        content: const Text(
+          'Tailscale app is required for VPN connection. '
+          'Would you like to install it from the app store?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _headscaleService.openTailscaleInstallPage();
+              // Recheck after user might have installed
+              await Future.delayed(const Duration(seconds: 2));
+              final installed = await _headscaleService.isTailscaleInstalled();
+              if (mounted) {
+                setState(() {
+                  _tailscaleInstalled = installed;
+                });
+              }
+            },
+            child: const Text('Install'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
