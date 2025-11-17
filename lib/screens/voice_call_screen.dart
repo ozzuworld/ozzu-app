@@ -26,6 +26,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   bool _showMenu = false;
   bool _showMediaMenu = false;
   bool _showTalkMenu = false;
+  bool _showTalkSearchMenu = false;
+  bool _showTalkPublicRoomsMenu = false;
+  final TextEditingController _talkSearchController = TextEditingController();
+
   Room? room;
   bool isConnected = false;
   bool isMuted = true;
@@ -59,6 +63,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   void dispose() {
     lottieCtrl.dispose();
     _roomListener?.dispose();
+    _talkSearchController.dispose();
     disconnectFromRoom();
     super.dispose();
   }
@@ -386,11 +391,15 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: _showTalkMenu
-                ? _buildTalkMenuItems()
-                : _showMediaMenu
-                    ? _buildMediaMenuItems()
-                    : _buildMainMenuItems(),
+            children: _showTalkSearchMenu
+                ? _buildTalkSearchMenuItems()
+                : _showTalkPublicRoomsMenu
+                    ? _buildTalkPublicRoomsMenuItems()
+                    : _showTalkMenu
+                        ? _buildTalkMenuItems()
+                        : _showMediaMenu
+                            ? _buildMediaMenuItems()
+                            : _buildMainMenuItems(),
           ),
         ),
       ),
@@ -456,16 +465,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         label: 'Search Room',
         statusColor: Colors.blueAccent,
         onTap: () {
-          setState(() {
-            _showMenu = false;
-            _showTalkMenu = false;
-          });
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const TalkScreen(initialView: TalkView.search),
-            ),
-          );
+          setState(() => _showTalkSearchMenu = true);
         },
       ),
 
@@ -477,19 +477,133 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         label: 'Public Rooms',
         statusColor: Colors.greenAccent,
         onTap: () {
-          setState(() {
-            _showMenu = false;
-            _showTalkMenu = false;
-          });
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const TalkScreen(initialView: TalkView.publicRooms),
-            ),
-          );
+          setState(() => _showTalkPublicRoomsMenu = true);
         },
       ),
     ];
+  }
+
+  List<Widget> _buildTalkSearchMenuItems() {
+    return [
+      // Back button
+      _buildGlassMenuItem(
+        icon: Icons.arrow_back,
+        label: 'Back',
+        statusColor: Colors.white.withOpacity(0.5),
+        onTap: () {
+          setState(() {
+            _showTalkSearchMenu = false;
+            _talkSearchController.clear();
+          });
+        },
+      ),
+
+      Divider(color: Colors.white.withOpacity(0.1), height: 1),
+
+      // Search input
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.15),
+                  width: 1,
+                ),
+              ),
+              child: TextField(
+                controller: _talkSearchController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white, fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: 'Enter room name...',
+                  hintStyle: TextStyle(
+                    color: Colors.white.withOpacity(0.3),
+                    fontSize: 15,
+                  ),
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Icon(Icons.meeting_room, color: Colors.white.withOpacity(0.5), size: 20),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(Icons.arrow_circle_right, color: Colors.blue.withOpacity(0.7), size: 26),
+                    onPressed: () {
+                      if (_talkSearchController.text.isNotEmpty) {
+                        _joinLivekitRoom(_talkSearchController.text.trim());
+                      }
+                    },
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+                onSubmitted: (value) {
+                  if (value.isNotEmpty) {
+                    _joinLivekitRoom(value.trim());
+                  }
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _buildTalkPublicRoomsMenuItems() {
+    // TODO: Load and display public rooms here
+    return [
+      // Back button
+      _buildGlassMenuItem(
+        icon: Icons.arrow_back,
+        label: 'Back',
+        statusColor: Colors.white.withOpacity(0.5),
+        onTap: () {
+          setState(() => _showTalkPublicRoomsMenu = false);
+        },
+      ),
+
+      Divider(color: Colors.white.withOpacity(0.1), height: 1),
+
+      // Placeholder for rooms list
+      Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: Text(
+            'Loading public rooms...',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.5),
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  // Join LiveKit room and navigate to TalkScreen
+  void _joinLivekitRoom(String roomName) {
+    setState(() {
+      _showMenu = false;
+      _showTalkMenu = false;
+      _showTalkSearchMenu = false;
+      _showTalkPublicRoomsMenu = false;
+      _talkSearchController.clear();
+    });
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TalkScreen(
+          initialView: TalkView.search,
+          autoJoinRoom: roomName,
+        ),
+      ),
+    );
   }
 
   List<Widget> _buildMediaMenuItems() {

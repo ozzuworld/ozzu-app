@@ -11,8 +11,13 @@ enum TalkView { search, publicRooms }
 
 class TalkScreen extends StatefulWidget {
   final TalkView initialView;
+  final String? autoJoinRoom;
 
-  const TalkScreen({super.key, this.initialView = TalkView.search});
+  const TalkScreen({
+    super.key,
+    this.initialView = TalkView.search,
+    this.autoJoinRoom,
+  });
 
   @override
   State<TalkScreen> createState() => _TalkScreenState();
@@ -68,6 +73,13 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     if (_showPublicRooms) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _roomsAnimationController.forward();
+      });
+    }
+
+    // Auto-join room if specified
+    if (widget.autoJoinRoom != null && widget.autoJoinRoom!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _joinRoom(widget.autoJoinRoom!);
       });
     }
   }
