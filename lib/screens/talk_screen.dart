@@ -7,8 +7,12 @@ import 'dart:convert';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/keycloak_service.dart';
 
+enum TalkView { search, publicRooms }
+
 class TalkScreen extends StatefulWidget {
-  const TalkScreen({super.key});
+  final TalkView initialView;
+
+  const TalkScreen({super.key, this.initialView = TalkView.search});
 
   @override
   State<TalkScreen> createState() => _TalkScreenState();
@@ -47,7 +51,11 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _loadAvailableRooms();
+    // Auto-expand public rooms if that's the initial view
+    if (widget.initialView == TalkView.publicRooms) {
+      _showPublicRooms = true;
+      _loadAvailableRooms();
+    }
     _controlsAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -56,6 +64,12 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+    // Animate public rooms if needed
+    if (_showPublicRooms) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _roomsAnimationController.forward();
+      });
+    }
   }
 
   @override
