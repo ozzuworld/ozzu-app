@@ -21,6 +21,7 @@ dependencies:
   cached_network_image: ^3.4.1
   flutter_secure_storage: ^9.2.2
   shimmer: ^3.0.0
+  just_audio: ^0.9.40
 
 dev_dependencies:
   flutter_test:

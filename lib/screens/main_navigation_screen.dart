@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'tv_browse_screen.dart';
+import 'media_screen.dart';
 import 'downloads_screen.dart';
 import 'settings_screen.dart';
 
@@ -15,8 +15,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final PageController _pageController = PageController();
 
   final List<Widget> _screens = [
-    const TVBrowseScreen(showBackButton: false),
-    const TVBrowseScreen(startWithSearch: true, showBackButton: false),
+    const MediaScreen(showBackButton: false),
+    const MediaScreen(startWithSearch: true, showBackButton: false),
     const DownloadsScreen(),
     const SettingsScreen(showBackButton: false),
   ];
@@ -69,9 +69,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           onTap: _onItemTapped,
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Home',
+              icon: Icon(Icons.play_circle_outline),
+              activeIcon: Icon(Icons.play_circle),
+              label: 'Media',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.search_outlined),
