@@ -14,7 +14,7 @@ class TalkScreen extends StatefulWidget {
   State<TalkScreen> createState() => _TalkScreenState();
 }
 
-class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateMixin {
+class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
   final TextEditingController _searchController = TextEditingController();
 
@@ -29,6 +29,7 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
   List<RoomInfo> _availableRooms = [];
   bool _isLoadingRooms = false;
   String? _currentRoomName;
+  bool _showPublicRooms = false; // Collapsible public rooms
 
   // Participants
   List<Participant> _participants = [];
@@ -39,8 +40,9 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
 
   EventsListener<RoomEvent>? _roomListener;
 
-  // Animation
+  // Animations
   late AnimationController _controlsAnimationController;
+  late AnimationController _roomsAnimationController;
 
   @override
   void initState() {
@@ -50,6 +52,10 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
+    _roomsAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
   }
 
   @override
@@ -57,6 +63,7 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
     _searchController.dispose();
     _roomListener?.dispose();
     _controlsAnimationController.dispose();
+    _roomsAnimationController.dispose();
     _disconnectFromRoom();
     super.dispose();
   }
@@ -267,21 +274,35 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
     }
   }
 
+  // Toggle public rooms
+  void _togglePublicRooms() {
+    setState(() {
+      _showPublicRooms = !_showPublicRooms;
+    });
+
+    if (_showPublicRooms) {
+      _roomsAnimationController.forward();
+      _loadAvailableRooms();
+    } else {
+      _roomsAnimationController.reverse();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
-      appBar: _buildAppBar(),
+      appBar: _isConnected ? null : _buildAppBar(),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFF1a1a2e),
-              const Color(0xFF16213e),
-              const Color(0xFF0f3460).withOpacity(0.9),
+              const Color(0xFF0a0a0f),
+              const Color(0xFF1a1a2e).withOpacity(0.8),
+              const Color(0xFF16213e).withOpacity(0.6),
             ],
           ),
         ),
@@ -299,41 +320,23 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
         icon: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withOpacity(0.05),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+          child: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
         ),
         onPressed: () => Navigator.pop(context),
       ),
       title: Text(
-        _isConnected ? (_currentRoomName ?? 'Talk') : 'Talk',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
+        'Talk',
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.95),
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
           letterSpacing: 0.5,
         ),
       ),
       centerTitle: false,
-      actions: [
-        if (_isConnected)
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.red.withOpacity(0.5), width: 1),
-                ),
-                child: const Icon(Icons.call_end, color: Colors.red, size: 20),
-              ),
-              onPressed: _disconnectFromRoom,
-            ),
-          ),
-      ],
     );
   }
 
@@ -342,13 +345,13 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
     return SafeArea(
       child: Column(
         children: [
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
-          // Search bar with enhanced glass effect
+          // Minimalist glass search bar
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(24),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                 child: Container(
@@ -357,50 +360,31 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.white.withOpacity(0.15),
-                        Colors.white.withOpacity(0.05),
+                        Colors.white.withOpacity(0.08),
+                        Colors.white.withOpacity(0.02),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.3),
-                      width: 1.5,
+                      color: Colors.white.withOpacity(0.15),
+                      width: 1,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
                   ),
                   child: TextField(
                     controller: _searchController,
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                    style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 15),
                     decoration: InputDecoration(
-                      hintText: 'Search or create a room...',
+                      hintText: 'Enter room name...',
                       hintStyle: TextStyle(
-                        color: Colors.white.withOpacity(0.5),
+                        color: Colors.white.withOpacity(0.3),
                         fontSize: 15,
                       ),
-                      prefixIcon: Container(
-                        margin: const EdgeInsets.all(12),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(Icons.search, color: Colors.blue.shade300, size: 20),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(14.0),
+                        child: Icon(Icons.search, color: Colors.white.withOpacity(0.4), size: 22),
                       ),
                       suffixIcon: IconButton(
-                        icon: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(Icons.arrow_forward, color: Colors.blue.shade300, size: 20),
-                        ),
+                        icon: Icon(Icons.arrow_circle_right, color: Colors.white.withOpacity(0.5), size: 28),
                         onPressed: () {
                           if (_searchController.text.isNotEmpty) {
                             _joinRoom(_searchController.text.trim());
@@ -408,7 +392,7 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
                         },
                       ),
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     ),
                     onSubmitted: (value) {
                       if (value.isNotEmpty) {
@@ -421,84 +405,117 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
             ),
           ),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: 32),
 
-          // Section header with glass background
+          // Public Rooms collapsible button
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Public Rooms',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.95),
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _togglePublicRooms,
                     child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withOpacity(0.08),
+                            Colors.white.withOpacity(0.02),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withOpacity(0.15),
                           width: 1,
                         ),
                       ),
-                      child: IconButton(
-                        icon: Icon(Icons.refresh, color: Colors.white.withOpacity(0.9), size: 22),
-                        onPressed: _loadAvailableRooms,
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.blue.withOpacity(0.3),
+                                  Colors.purple.withOpacity(0.3),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.groups_rounded,
+                              color: Colors.white.withOpacity(0.9),
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              'Public Rooms',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                          if (_availableRooms.isNotEmpty && !_isLoadingRooms)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${_availableRooms.length}',
+                                style: TextStyle(
+                                  color: Colors.blue.shade300,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(width: 8),
+                          AnimatedRotation(
+                            turns: _showPublicRooms ? 0.5 : 0,
+                            duration: const Duration(milliseconds: 300),
+                            child: Icon(
+                              Icons.expand_more,
+                              color: Colors.white.withOpacity(0.5),
+                              size: 24,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
 
           const SizedBox(height: 16),
 
-          // Available rooms list
+          // Expandable rooms list
           Expanded(
-            child: _isLoadingRooms
-                ? Center(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.2),
-                              width: 1,
-                            ),
-                          ),
-                          child: const CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        ),
-                      ),
-                    ),
-                  )
-                : _availableRooms.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        itemCount: _availableRooms.length,
-                        itemBuilder: (context, index) {
-                          final room = _availableRooms[index];
-                          return _buildRoomCard(room, index);
-                        },
-                      ),
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeInOut,
+              child: _showPublicRooms
+                  ? _isLoadingRooms
+                      ? _buildLoadingState()
+                      : _availableRooms.isEmpty
+                          ? _buildEmptyState()
+                          : _buildRoomsList()
+                  : const SizedBox.shrink(),
+            ),
           ),
 
           // Connecting indicator
@@ -508,69 +525,51 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
     );
   }
 
-  // Empty state with glass design
+  // Loading state
+  Widget _buildLoadingState() {
+    return Center(
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation<Color>(Colors.white.withOpacity(0.5)),
+        strokeWidth: 2,
+      ),
+    );
+  }
+
+  // Empty state
   Widget _buildEmptyState() {
     return Center(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-            margin: const EdgeInsets.all(20),
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withOpacity(0.1),
-                  Colors.white.withOpacity(0.05),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.2),
-                width: 1.5,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.meeting_room,
-                    size: 48,
-                    color: Colors.blue.shade300,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'No Public Rooms',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Be the first to create a room\nSearch above to get started',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
-                    fontSize: 14,
-                    height: 1.5,
-                  ),
-                ),
-              ],
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.meeting_room_outlined,
+            size: 48,
+            color: Colors.white.withOpacity(0.2),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No rooms available',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.4),
+              fontSize: 14,
             ),
           ),
-        ),
+        ],
+      ),
+    );
+  }
+
+  // Rooms list
+  Widget _buildRoomsList() {
+    return FadeTransition(
+      opacity: _roomsAnimationController,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        itemCount: _availableRooms.length,
+        itemBuilder: (context, index) {
+          final room = _availableRooms[index];
+          return _buildRoomCard(room);
+        },
       ),
     );
   }
@@ -584,18 +583,11 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withOpacity(0.15),
-                Colors.white.withOpacity(0.05),
-              ],
-            ),
+            color: Colors.white.withOpacity(0.05),
             border: Border(
               top: BorderSide(
-                color: Colors.white.withOpacity(0.3),
-                width: 1.5,
+                color: Colors.white.withOpacity(0.1),
+                width: 1,
               ),
             ),
           ),
@@ -603,19 +595,19 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               SizedBox(
-                width: 24,
-                height: 24,
+                width: 20,
+                height: 20,
                 child: CircularProgressIndicator(
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white.withOpacity(0.7)),
+                  strokeWidth: 2,
                 ),
               ),
               const SizedBox(width: 16),
               Text(
                 'Joining room...',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
-                  fontSize: 16,
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 15,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -626,158 +618,80 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
     );
   }
 
-  // Enhanced room card widget
-  Widget _buildRoomCard(RoomInfo room, int index) {
+  // Minimalist room card
+  Widget _buildRoomCard(RoomInfo room) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 10),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withOpacity(0.15),
-                  Colors.white.withOpacity(0.05),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.3),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                splashColor: Colors.white.withOpacity(0.1),
-                highlightColor: Colors.white.withOpacity(0.05),
-                onTap: () => _joinRoom(room.name),
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      // Room icon with gradient
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Colors.blue.withOpacity(0.4),
-                              Colors.purple.withOpacity(0.4),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.blue.withOpacity(0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.groups_rounded,
-                          color: Colors.white.withOpacity(0.95),
-                          size: 28,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              room.name,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.3,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.person,
-                                        size: 14,
-                                        color: Colors.white.withOpacity(0.7),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${room.numParticipants}',
-                                        style: TextStyle(
-                                          color: Colors.white.withOpacity(0.8),
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.shade400,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.green.withOpacity(0.5),
-                                        blurRadius: 6,
-                                        spreadRadius: 1,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Active',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.6),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        color: Colors.white.withOpacity(0.5),
-                        size: 18,
-                      ),
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _joinRoom(room.name),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.06),
+                      Colors.white.withOpacity(0.02),
                     ],
                   ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.meeting_room_outlined,
+                      color: Colors.white.withOpacity(0.6),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        room.name,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.person_outline,
+                            size: 14,
+                            color: Colors.white.withOpacity(0.6),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${room.numParticipants}',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.7),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -787,101 +701,123 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
     );
   }
 
-  // Room view (when connected)
+  // Room view (when connected) - Ultra minimalist floating design
   Widget _buildRoomView() {
     return SafeArea(
       child: Stack(
         children: [
-          // Participants grid
-          Column(
-            children: [
-              // Room info banner with glass effect
-              ClipRRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.white.withOpacity(0.12),
-                          Colors.white.withOpacity(0.05),
-                        ],
-                      ),
-                      border: Border(
-                        bottom: BorderSide(
-                          color: Colors.white.withOpacity(0.2),
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            Icons.meeting_room_rounded,
-                            color: Colors.blue.shade300,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _currentRoomName ?? 'Unknown Room',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.3,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${_participants.length} participant${_participants.length != 1 ? 's' : ''}',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.6),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              // Participants grid
-              Expanded(
-                child: _participants.isEmpty
-                    ? _buildWaitingState()
-                    : _buildParticipantGrid(),
-              ),
-            ],
+          // Participants grid with floating effect
+          Positioned.fill(
+            child: _participants.isEmpty
+                ? _buildWaitingState()
+                : _buildParticipantGrid(),
           ),
 
-          // Floating glass controls at bottom
+          // Minimalist floating controls at bottom
           Positioned(
-            bottom: 20,
-            left: 20,
-            right: 20,
+            bottom: 24,
+            left: 0,
+            right: 0,
             child: _buildFloatingControls(),
           ),
+
+          // Minimalist back button top left
+          Positioned(
+            top: 16,
+            left: 16,
+            child: _buildBackButton(),
+          ),
+
+          // Room name floating top center
+          Positioned(
+            top: 16,
+            left: 0,
+            right: 0,
+            child: _buildRoomNameBadge(),
+          ),
         ],
+      ),
+    );
+  }
+
+  // Minimalist back button
+  Widget _buildBackButton() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _disconnectFromRoom,
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              child: Icon(
+                Icons.arrow_back,
+                color: Colors.white.withOpacity(0.8),
+                size: 20,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Floating room name badge
+  Widget _buildRoomNameBadge() {
+    return Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.1),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.circle,
+                  size: 8,
+                  color: Colors.green.shade400,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _currentRoomName ?? 'Room',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '• ${_participants.length}',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -889,57 +825,31 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
   // Waiting state
   Widget _buildWaitingState() {
     return Center(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-            margin: const EdgeInsets.all(20),
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withOpacity(0.1),
-                  Colors.white.withOpacity(0.05),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.2),
-                width: 1.5,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: CircularProgressIndicator(
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                    strokeWidth: 3,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Waiting for participants...',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white.withOpacity(0.5)),
+              strokeWidth: 2,
             ),
           ),
-        ),
+          const SizedBox(height: 20),
+          Text(
+            'Waiting for participants...',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.5),
+              fontSize: 14,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  // Participant grid layout
+  // Participant grid layout with floating effect
   Widget _buildParticipantGrid() {
     final participantCount = _participants.length;
 
@@ -956,12 +866,12 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
     }
 
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 110),
+      padding: const EdgeInsets.fromLTRB(20, 60, 20, 120),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: participantCount == 1 ? 0.75 : 1.0,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: participantCount == 1 ? 0.7 : 0.9,
       ),
       itemCount: participantCount,
       itemBuilder: (context, index) {
@@ -970,7 +880,7 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
     );
   }
 
-  // Enhanced participant tile
+  // Floating participant tile
   Widget _buildParticipantTile(Participant participant) {
     final isLocal = participant == _room?.localParticipant;
     final identity = participant.identity ?? 'Unknown';
@@ -998,32 +908,18 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
             else
               Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.grey.shade900,
-                      Colors.grey.shade800,
-                    ],
-                  ),
+                  color: Colors.black.withOpacity(0.4),
                 ),
                 child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.person,
-                      size: 48,
-                      color: Colors.white.withOpacity(0.4),
-                    ),
+                  child: Icon(
+                    Icons.person_outline,
+                    size: 40,
+                    color: Colors.white.withOpacity(0.3),
                   ),
                 ),
               ),
 
-            // Glass overlay for speaking indicator
+            // Speaking indicator glow
             if (isSpeaking)
               Positioned.fill(
                 child: Container(
@@ -1031,11 +927,11 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: Colors.green.shade400,
-                      width: 4,
+                      width: 3,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.green.withOpacity(0.5),
+                        color: Colors.green.shade400.withOpacity(0.6),
                         blurRadius: 20,
                         spreadRadius: 2,
                       ),
@@ -1044,42 +940,37 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
                 ),
               ),
 
-            // Border overlay
+            // Minimal border overlay
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isLocal
-                        ? Colors.blue.withOpacity(0.6)
-                        : Colors.white.withOpacity(0.3),
-                    width: isLocal ? 3 : 2,
+                        ? Colors.blue.withOpacity(0.4)
+                        : Colors.white.withOpacity(0.15),
+                    width: 1.5,
                   ),
                 ),
               ),
             ),
 
-            // Identity label with enhanced glass effect
+            // Minimal identity label
             Positioned(
-              bottom: 12,
-              left: 12,
-              right: 12,
+              bottom: 10,
+              left: 10,
+              right: 10,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
                 child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.black.withOpacity(0.6),
-                          Colors.black.withOpacity(0.4),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.black.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withOpacity(0.1),
                         width: 1,
                       ),
                     ),
@@ -1088,42 +979,30 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
                       children: [
                         if (isLocal) ...[
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            width: 6,
+                            height: 6,
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.blue.withOpacity(0.6),
-                                  Colors.purple.withOpacity(0.6),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'You',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              color: Colors.blue.shade400,
+                              shape: BoxShape.circle,
                             ),
                           ),
                           const SizedBox(width: 6),
                         ],
                         if (isSpeaking) ...[
                           Icon(
-                            Icons.graphic_eq_rounded,
+                            Icons.graphic_eq,
                             color: Colors.green.shade400,
-                            size: 16,
+                            size: 14,
                           ),
                           const SizedBox(width: 4),
                         ],
                         Flexible(
                           child: Text(
                             identity,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
                             ),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
@@ -1141,74 +1020,54 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
     );
   }
 
-  // Floating glass controls
+  // Ultra minimalist floating controls
   Widget _buildFloatingControls() {
     return FadeTransition(
       opacity: _controlsAnimationController,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 1),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(
-          parent: _controlsAnimationController,
-          curve: Curves.easeOut,
-        )),
+      child: Center(
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(28),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(0.2),
-                    Colors.white.withOpacity(0.1),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(24),
+                color: Colors.black.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(28),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.4),
-                  width: 1.5,
+                  color: Colors.white.withOpacity(0.15),
+                  width: 1,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 30,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   // Microphone
-                  _buildGlassControlButton(
-                    icon: _isMicEnabled ? Icons.mic_rounded : Icons.mic_off_rounded,
-                    label: _isMicEnabled ? 'Mic On' : 'Mic Off',
+                  _buildMinimalControlButton(
+                    icon: _isMicEnabled ? Icons.mic : Icons.mic_off,
                     isActive: _isMicEnabled,
                     activeColor: Colors.blue,
                     onPressed: _toggleMicrophone,
                   ),
 
+                  const SizedBox(width: 12),
+
                   // Camera
-                  _buildGlassControlButton(
-                    icon: _isCameraEnabled ? Icons.videocam_rounded : Icons.videocam_off_rounded,
-                    label: _isCameraEnabled ? 'Cam On' : 'Cam Off',
+                  _buildMinimalControlButton(
+                    icon: _isCameraEnabled ? Icons.videocam : Icons.videocam_off,
                     isActive: _isCameraEnabled,
                     activeColor: Colors.green,
                     onPressed: _toggleCamera,
                   ),
 
-                  // Leave
-                  _buildGlassControlButton(
-                    icon: Icons.call_end_rounded,
-                    label: 'Leave',
-                    isActive: false,
-                    isDestructive: true,
+                  const SizedBox(width: 12),
+
+                  // Leave (destructive)
+                  _buildMinimalControlButton(
+                    icon: Icons.call_end,
+                    isActive: true,
                     activeColor: Colors.red,
+                    isDestructive: true,
                     onPressed: _disconnectFromRoom,
                   ),
                 ],
@@ -1220,13 +1079,12 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
     );
   }
 
-  // Glass control button
-  Widget _buildGlassControlButton({
+  // Minimal control button - medium sized icons
+  Widget _buildMinimalControlButton({
     required IconData icon,
-    required String label,
     required bool isActive,
-    bool isDestructive = false,
     required Color activeColor,
+    bool isDestructive = false,
     required VoidCallback onPressed,
   }) {
     final displayColor = isDestructive
@@ -1235,67 +1093,31 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
             ? activeColor
             : Colors.white;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onPressed,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: (isActive || isDestructive)
+                ? displayColor.withOpacity(0.15)
+                : Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(20),
-            child: Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                gradient: isActive || isDestructive
-                    ? LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          displayColor.withOpacity(0.3),
-                          displayColor.withOpacity(0.2),
-                        ],
-                      )
-                    : LinearGradient(
-                        colors: [
-                          Colors.white.withOpacity(0.15),
-                          Colors.white.withOpacity(0.05),
-                        ],
-                      ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: displayColor.withOpacity(0.6),
-                  width: 2,
-                ),
-                boxShadow: isActive || isDestructive
-                    ? [
-                        BoxShadow(
-                          color: displayColor.withOpacity(0.3),
-                          blurRadius: 15,
-                          offset: const Offset(0, 5),
-                        ),
-                      ]
-                    : [],
-              ),
-              child: Icon(
-                icon,
-                color: displayColor.withOpacity(0.95),
-                size: 28,
-              ),
+            border: Border.all(
+              color: displayColor.withOpacity(0.3),
+              width: 1,
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.9),
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.3,
+          child: Icon(
+            icon,
+            color: displayColor.withOpacity(0.9),
+            size: 24, // Medium icon size
           ),
         ),
-      ],
+      ),
     );
   }
 }
