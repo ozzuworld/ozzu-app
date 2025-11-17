@@ -223,6 +223,34 @@ class JellyseerrService {
     }
   }
 
+  // Search for content
+  Future<List<dynamic>> search(String query) async {
+    if (query.trim().isEmpty) {
+      return [];
+    }
+
+    try {
+      _logger.i('🔍 Searching Jellyseerr for: $query');
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/v1/search?query=${Uri.encodeComponent(query)}'),
+        headers: _getHeaders(),
+      );
+
+      _logger.i('🔍 Search response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final results = data['results'] ?? [];
+        _logger.i('🔍 Found ${results.length} results in Jellyseerr');
+        return results;
+      }
+      return [];
+    } catch (e) {
+      _logger.e('❌ Error searching Jellyseerr: $e');
+      return [];
+    }
+  }
+
   // Get TMDb image URL (Jellyseerr uses TMDb images)
   String getImageUrl(String? path, {String size = 'w500'}) {
     if (path == null) return '';
