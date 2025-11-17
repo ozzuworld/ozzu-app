@@ -11,6 +11,7 @@ import 'login_screen.dart';
 import 'main_navigation_screen.dart';
 import 'music_browse_screen.dart';
 import 'talk_screen.dart';
+import 'security_screen.dart';
 
 class VoiceCallScreen extends StatefulWidget {
   final bool startUnmuted;
@@ -435,6 +436,24 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         statusColor: Colors.blueAccent,
         onTap: () {
           setState(() => _showMediaMenu = true);
+        },
+      ),
+
+      Divider(color: Colors.white.withOpacity(0.1), height: 1),
+
+      // Security
+      _buildGlassMenuItem(
+        icon: Icons.security,
+        label: 'Security',
+        statusColor: Colors.cyanAccent,
+        onTap: () {
+          setState(() => _showMenu = false);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SecurityScreen(),
+            ),
+          );
         },
       ),
 
