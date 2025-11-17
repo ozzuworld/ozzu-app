@@ -208,7 +208,16 @@ class JellyfinService {
 
   // Get video stream URL
   String getStreamUrl(String itemId) {
-    return '$baseUrl/Videos/$itemId/stream?api_key=$_accessToken&Static=true';
+    // Use the universal streaming endpoint for better compatibility
+    // This supports transcoding if the client can't play the original format
+    return '$baseUrl/Videos/$itemId/stream?'
+        'api_key=$_accessToken&'
+        'MediaSourceId=$itemId&'
+        'Static=false&'
+        'VideoCodec=h264&'
+        'AudioCodec=aac&'
+        'MaxAudioChannels=2&'
+        'TranscodingProtocol=hls';
   }
 
   // Get image URL (poster/backdrop)
