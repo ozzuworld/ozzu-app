@@ -25,6 +25,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   final AuthService _authService = AuthService();
   bool _showMenu = false;
   bool _showMediaMenu = false;
+  bool _showTalkMenu = false;
   Room? room;
   bool isConnected = false;
   bool isMuted = true;
@@ -385,7 +386,11 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: _showMediaMenu ? _buildMediaMenuItems() : _buildMainMenuItems(),
+            children: _showTalkMenu
+                ? _buildTalkMenuItems()
+                : _showMediaMenu
+                    ? _buildMediaMenuItems()
+                    : _buildMainMenuItems(),
           ),
         ),
       ),
@@ -394,17 +399,13 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   List<Widget> _buildMainMenuItems() {
     return [
-      // Talk
+      // Talk (expandable)
       _buildGlassMenuItem(
         icon: Icons.groups,
         label: 'Talk',
         statusColor: Colors.blueAccent,
         onTap: () {
-          setState(() => _showMenu = false);
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const TalkScreen()),
-          );
+          setState(() => _showTalkMenu = true);
         },
       ),
 
@@ -430,6 +431,62 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         onTap: () {
           setState(() => _showMenu = false);
           _logout();
+        },
+      ),
+    ];
+  }
+
+  List<Widget> _buildTalkMenuItems() {
+    return [
+      // Back button
+      _buildGlassMenuItem(
+        icon: Icons.arrow_back,
+        label: 'Back',
+        statusColor: Colors.white.withOpacity(0.5),
+        onTap: () {
+          setState(() => _showTalkMenu = false);
+        },
+      ),
+
+      Divider(color: Colors.white.withOpacity(0.1), height: 1),
+
+      // Search Room
+      _buildGlassMenuItem(
+        icon: Icons.search,
+        label: 'Search Room',
+        statusColor: Colors.blueAccent,
+        onTap: () {
+          setState(() {
+            _showMenu = false;
+            _showTalkMenu = false;
+          });
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const TalkScreen(initialView: TalkView.search),
+            ),
+          );
+        },
+      ),
+
+      Divider(color: Colors.white.withOpacity(0.1), height: 1),
+
+      // Public Rooms
+      _buildGlassMenuItem(
+        icon: Icons.public,
+        label: 'Public Rooms',
+        statusColor: Colors.greenAccent,
+        onTap: () {
+          setState(() {
+            _showMenu = false;
+            _showTalkMenu = false;
+          });
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const TalkScreen(initialView: TalkView.publicRooms),
+            ),
+          );
         },
       ),
     ];
