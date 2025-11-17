@@ -646,12 +646,7 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
               ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.white.withOpacity(0.3),
-                    Colors.white.withOpacity(0.1),
-                  ],
-                ),
+                color: Colors.white.withOpacity(0.3),
                 width: 1.5,
               ),
               boxShadow: [
@@ -1055,18 +1050,9 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        isLocal
-                            ? Colors.blue.withOpacity(0.6)
-                            : Colors.white.withOpacity(0.3),
-                        isLocal
-                            ? Colors.purple.withOpacity(0.6)
-                            : Colors.white.withOpacity(0.1),
-                      ],
-                    ),
+                    color: isLocal
+                        ? Colors.blue.withOpacity(0.6)
+                        : Colors.white.withOpacity(0.3),
                     width: isLocal ? 3 : 2,
                   ),
                 ),
@@ -1184,12 +1170,7 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
                 ),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.white.withOpacity(0.4),
-                      Colors.white.withOpacity(0.2),
-                    ],
-                  ),
+                  color: Colors.white.withOpacity(0.4),
                   width: 1.5,
                 ),
                 boxShadow: [
@@ -1283,12 +1264,7 @@ class _TalkScreenState extends State<TalkScreen> with SingleTickerProviderStateM
                       ),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  gradient: LinearGradient(
-                    colors: [
-                      displayColor.withOpacity(0.6),
-                      displayColor.withOpacity(0.3),
-                    ],
-                  ),
+                  color: displayColor.withOpacity(0.6),
                   width: 2,
                 ),
                 boxShadow: isActive || isDestructive
