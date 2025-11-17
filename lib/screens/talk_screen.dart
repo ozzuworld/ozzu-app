@@ -296,8 +296,10 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
           targetAngle: angle,
           currentAngle: angle + (math.Random().nextDouble() - 0.5) * 0.3,
           currentRadius: 0.32 + (math.Random().nextDouble() - 0.5) * 0.05,
+          currentDepth: 0.5 + (math.Random().nextDouble() - 0.5) * 0.3, // Random depth 0.35-0.65
           velocityAngle: (math.Random().nextDouble() - 0.5) * 0.02,
           velocityRadius: (math.Random().nextDouble() - 0.5) * 0.01,
+          velocityDepth: (math.Random().nextDouble() - 0.5) * 0.005,
         );
       } else {
         // Update target angle for existing participants
@@ -307,13 +309,14 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     }
   }
 
-  // Update physics simulation every frame
+  // Update physics simulation every frame with 3D depth
   void _updatePhysics() {
     if (_participants.isEmpty) return;
 
     const dt = 0.016; // ~60fps
     const repulsionStrength = 0.008;
     const springStrength = 0.05;
+    const depthSpringStrength = 0.03;
     const damping = 0.92;
     const minDistance = 0.15;
 
@@ -326,6 +329,7 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
 
       double forceAngle = 0;
       double forceRadius = 0;
+      double forceDepth = 0;
 
       // Spring force toward target orbital position
       final angleDiff = _normalizeAngle(physics.targetAngle - physics.currentAngle);
@@ -334,7 +338,11 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
       final radiusDiff = 0.32 - physics.currentRadius;
       forceRadius += radiusDiff * springStrength;
 
-      // Repulsion from other participants
+      // Spring force toward mid-depth (0.5)
+      final depthDiff = 0.5 - physics.currentDepth;
+      forceDepth += depthDiff * depthSpringStrength;
+
+      // Repulsion from other participants (3D distance)
       for (int j = 0; j < _participants.length; j++) {
         if (i == j) continue;
 
@@ -343,41 +351,48 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
         final otherPhysics = _particlePhysics[otherId];
         if (otherPhysics == null) continue;
 
-        // Calculate distance between particles
+        // Calculate 3D distance between particles
         final dx = physics.currentRadius * math.cos(physics.currentAngle) -
                    otherPhysics.currentRadius * math.cos(otherPhysics.currentAngle);
         final dy = physics.currentRadius * math.sin(physics.currentAngle) -
                    otherPhysics.currentRadius * math.sin(otherPhysics.currentAngle);
-        final distance = math.sqrt(dx * dx + dy * dy);
+        final dz = (physics.currentDepth - otherPhysics.currentDepth) * 0.3; // Scale depth
+        final distance = math.sqrt(dx * dx + dy * dy + dz * dz);
 
         if (distance < minDistance && distance > 0.001) {
-          // Apply repulsion force
+          // Apply repulsion force in 3D
           final repulsion = repulsionStrength * (minDistance - distance) / distance;
           final repulsionAngle = math.atan2(dy, dx);
 
           forceAngle += repulsion * math.sin(repulsionAngle - physics.currentAngle);
           forceRadius += repulsion * math.cos(repulsionAngle - physics.currentAngle);
+          forceDepth += repulsion * dz;
         }
       }
 
-      // Add some gentle random drift for organic feel
+      // Add gentle random drift for organic feel (3D)
       forceAngle += (math.Random().nextDouble() - 0.5) * 0.001;
       forceRadius += (math.Random().nextDouble() - 0.5) * 0.0005;
+      forceDepth += (math.Random().nextDouble() - 0.5) * 0.0003;
 
       // Update velocities
       physics.velocityAngle += forceAngle * dt;
       physics.velocityRadius += forceRadius * dt;
+      physics.velocityDepth += forceDepth * dt;
 
       // Apply damping
       physics.velocityAngle *= damping;
       physics.velocityRadius *= damping;
+      physics.velocityDepth *= damping;
 
       // Update positions
       physics.currentAngle += physics.velocityAngle;
       physics.currentRadius += physics.velocityRadius;
+      physics.currentDepth += physics.velocityDepth;
 
-      // Clamp radius to reasonable bounds
+      // Clamp to reasonable bounds
       physics.currentRadius = physics.currentRadius.clamp(0.25, 0.4);
+      physics.currentDepth = physics.currentDepth.clamp(0.2, 0.8); // Keep depth varied
 
       // Normalize angle
       physics.currentAngle = _normalizeAngle(physics.currentAngle);
@@ -964,6 +979,16 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
         // Radius for participant orbit - scales with screen size
         final baseRadius = math.min(constraints.maxWidth, constraints.maxHeight) * 0.32;
 
+        // Sort participant indices by depth (far to near) for proper 3D layering
+        final sortedIndices = List.generate(participantCount, (i) => i);
+        sortedIndices.sort((a, b) {
+          final idA = _participants[a].identity ?? 'unknown-$a';
+          final idB = _participants[b].identity ?? 'unknown-$b';
+          final depthA = _particlePhysics[idA]?.currentDepth ?? 0.5;
+          final depthB = _particlePhysics[idB]?.currentDepth ?? 0.5;
+          return depthA.compareTo(depthB); // Far nodes first (behind)
+        });
+
         return Stack(
           children: [
             // Connection lines from participants to center
@@ -978,15 +1003,18 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
               ),
             ),
 
-            // Central room name box (small circle)
+            // Central room node (behind participants in 3D space)
             Positioned(
               left: centerX - 35,
               top: centerY - 35,
-              child: _buildCentralRoomNode(),
+              child: Opacity(
+                opacity: 0.7, // Slightly dimmer to appear "behind"
+                child: _buildCentralRoomNode(),
+              ),
             ),
 
-            // Participant nodes with physics-based positions
-            for (int i = 0; i < participantCount; i++)
+            // Participant nodes sorted by depth (far to near)
+            for (final i in sortedIndices)
               _buildFloatingParticipant(
                 participant: _participants[i],
                 index: i,
@@ -1065,7 +1093,7 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Floating participant with physics-based position
+  // Floating participant with 3D perspective transform
   Widget _buildFloatingParticipant({
     required Participant participant,
     required int index,
@@ -1080,9 +1108,21 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     // If physics not initialized yet, use default position
     final angle = physics?.currentAngle ?? ((2 * math.pi * index / _participants.length) - (math.pi / 2));
     final radius = (physics?.currentRadius ?? 0.32) * screenSize;
+    final depth = physics?.currentDepth ?? 0.5;
 
     final x = centerX + radius * math.cos(angle) - (size / 2);
     final y = centerY + radius * math.sin(angle) - (size / 2);
+
+    // Calculate position relative to center for billboard rotation
+    final relX = x + (size / 2) - centerX;
+    final relY = y + (size / 2) - centerY;
+
+    // Depth-based scale (closer = larger)
+    final depthScale = 0.85 + (depth * 0.3); // Range: 0.85 to 1.15
+
+    // Subtle billboard rotation based on position (always facing viewer)
+    final rotateY = (relX / screenSize) * 0.15; // Max ±0.15 radians
+    final rotateX = -(relY / screenSize) * 0.15; // Negative for natural feel
 
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 16), // Smooth 60fps interpolation
@@ -1093,22 +1133,27 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
         tween: Tween(begin: 0.0, end: 1.0),
         duration: Duration(milliseconds: 400 + (index * 100)),
         curve: Curves.elasticOut,
-        builder: (context, value, child) {
-          return Transform.scale(
-            scale: value,
+        builder: (context, entranceValue, child) {
+          return Transform(
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.001) // Perspective strength
+              ..rotateX(rotateX * entranceValue) // Billboard Y-axis (subtle)
+              ..rotateY(rotateY * entranceValue) // Billboard X-axis (subtle)
+              ..scale(depthScale * entranceValue),
+            alignment: Alignment.center,
             child: Opacity(
-              opacity: value,
+              opacity: entranceValue,
               child: child,
             ),
           );
         },
-        child: _buildSmallParticipantSquare(participant, size),
+        child: _buildSmallParticipantSquare(participant, size, depth),
       ),
     );
   }
 
-  // Small gaming-style participant square
-  Widget _buildSmallParticipantSquare(Participant participant, double size) {
+  // Small gaming-style participant square with 3D depth
+  Widget _buildSmallParticipantSquare(Participant participant, double size, double depth) {
     final isLocal = participant == _room?.localParticipant;
     final identity = participant.identity ?? 'Unknown';
     final isSpeaking = participant.isSpeaking;
@@ -1122,6 +1167,11 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
       }
     }
 
+    // Depth-based shadow intensity (closer = stronger shadow)
+    final shadowOpacity = 0.2 + (depth * 0.4); // Range: 0.2 to 0.6
+    final shadowBlur = 15.0 + (depth * 25.0); // Range: 15 to 40
+    final shadowSpread = depth * 5.0; // Range: 0 to 5
+
     return Container(
       width: size,
       height: size,
@@ -1131,14 +1181,22 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
+              // Main depth shadow
+              BoxShadow(
+                color: Colors.black.withOpacity(shadowOpacity * 0.8),
+                blurRadius: shadowBlur,
+                spreadRadius: shadowSpread,
+                offset: Offset(0, depth * 8), // Vertical offset based on depth
+              ),
+              // Colored glow shadow
               BoxShadow(
                 color: isLocal
-                    ? Colors.blue.withOpacity(0.4)
+                    ? Colors.blue.withOpacity(0.4 * depth)
                     : isSpeaking
-                        ? Colors.green.withOpacity(0.5)
-                        : Colors.white.withOpacity(0.2),
-                blurRadius: isSpeaking ? 25 : 15,
-                spreadRadius: isSpeaking ? 2 : 0,
+                        ? Colors.green.withOpacity(0.5 * depth)
+                        : Colors.white.withOpacity(0.2 * depth),
+                blurRadius: isSpeaking ? 30 : 20,
+                spreadRadius: isSpeaking ? 3 : 1,
               ),
             ],
           ),
@@ -1350,7 +1408,7 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
   }
 }
 
-// Custom painter for connection lines (skill tree style) with physics
+// Custom painter for 3D connection lines with depth-aware styling
 class _ParticipantConnectionsPainter extends CustomPainter {
   final List<Participant> participants;
   final Map<String, ParticlePhysics> particlePhysics;
@@ -1368,18 +1426,18 @@ class _ParticipantConnectionsPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.12)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
+    // Sort participants by depth (far to near) for proper layering
+    final sortedIndices = List.generate(participants.length, (i) => i);
+    sortedIndices.sort((a, b) {
+      final idA = participants[a].identity ?? 'unknown-$a';
+      final idB = participants[b].identity ?? 'unknown-$b';
+      final depthA = particlePhysics[idA]?.currentDepth ?? 0.5;
+      final depthB = particlePhysics[idB]?.currentDepth ?? 0.5;
+      return depthA.compareTo(depthB); // Draw far first
+    });
 
-    final glowPaint = Paint()
-      ..color = Colors.blue.withOpacity(0.06)
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
-
-    for (int i = 0; i < participants.length; i++) {
+    // Draw lines from far to near
+    for (final i in sortedIndices) {
       final participant = participants[i];
       final id = participant.identity ?? 'unknown-$i';
       final physics = particlePhysics[id];
@@ -1388,10 +1446,28 @@ class _ParticipantConnectionsPainter extends CustomPainter {
 
       final angle = physics.currentAngle;
       final radius = physics.currentRadius * screenSize;
+      final depth = physics.currentDepth;
       final participantX = centerX + radius * math.cos(angle);
       final participantY = centerY + radius * math.sin(angle);
 
-      // Draw glow line (rope effect)
+      // Depth-based line styling (closer = brighter & thicker)
+      final lineOpacity = 0.08 + (depth * 0.15); // Range: 0.08 to 0.23
+      final lineWidth = 1.0 + (depth * 1.5); // Range: 1.0 to 2.5
+      final glowOpacity = 0.03 + (depth * 0.08); // Range: 0.03 to 0.11
+      final glowWidth = 3.0 + (depth * 4.0); // Range: 3.0 to 7.0
+
+      final paint = Paint()
+        ..color = Colors.white.withOpacity(lineOpacity)
+        ..strokeWidth = lineWidth
+        ..style = PaintingStyle.stroke;
+
+      final glowPaint = Paint()
+        ..color = Colors.blue.withOpacity(glowOpacity)
+        ..strokeWidth = glowWidth
+        ..style = PaintingStyle.stroke
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+
+      // Draw glow line (rope effect with depth)
       canvas.drawLine(
         Offset(centerX, centerY),
         Offset(participantX, participantY),
@@ -1405,17 +1481,18 @@ class _ParticipantConnectionsPainter extends CustomPainter {
         paint,
       );
 
-      // Draw a small dot at connection point on participant
+      // Draw connection dot (size based on depth)
+      final dotSize = 2.0 + (depth * 1.5);
       final dotPaint = Paint()
-        ..color = Colors.white.withOpacity(0.25)
+        ..color = Colors.white.withOpacity(0.2 + (depth * 0.3))
         ..style = PaintingStyle.fill;
-      canvas.drawCircle(Offset(participantX, participantY), 2.5, dotPaint);
+      canvas.drawCircle(Offset(participantX, participantY), dotSize, dotPaint);
     }
 
-    // Draw central node circle outline (smaller now)
+    // Draw central node circle outline (behind everything)
     final centralPaint = Paint()
-      ..color = Colors.purple.withOpacity(0.25)
-      ..strokeWidth = 2
+      ..color = Colors.purple.withOpacity(0.2)
+      ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
     canvas.drawCircle(Offset(centerX, centerY), 40, centralPaint);
   }
@@ -1426,20 +1503,24 @@ class _ParticipantConnectionsPainter extends CustomPainter {
   }
 }
 
-// Particle physics data class
+// Particle physics data class with 3D depth
 class ParticlePhysics {
   double targetAngle;      // Target orbital angle
   double currentAngle;     // Current angle position
   double currentRadius;    // Current radius (normalized 0-1)
+  double currentDepth;     // Z-depth (0.0 = far, 1.0 = close)
   double velocityAngle;    // Angular velocity
   double velocityRadius;   // Radial velocity
+  double velocityDepth;    // Z-axis velocity
 
   ParticlePhysics({
     required this.targetAngle,
     required this.currentAngle,
     required this.currentRadius,
+    required this.currentDepth,
     required this.velocityAngle,
     required this.velocityRadius,
+    required this.velocityDepth,
   });
 }
 
