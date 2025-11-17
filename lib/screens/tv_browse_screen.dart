@@ -21,6 +21,7 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
 
   bool _isLoading = true;
   String? _errorMessage;
+  List<dynamic> _continueWatching = [];
   List<dynamic> _recentlyAdded = [];
   List<dynamic> _trendingMovies = [];
   List<dynamic> _trendingTV = [];
@@ -79,21 +80,24 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     try {
       debugPrint('📺 Loading Jellyfin content...');
       final results = await Future.wait([
+        _jellyfinService.getContinueWatching(),
         _jellyfinService.getRecentlyAdded(),
         _jellyfinService.getMovies(),
         _jellyfinService.getTVShows(),
       ]);
 
       debugPrint('📺 Jellyfin content loaded:');
-      debugPrint('  - Recently Added: ${results[0].length} items');
-      debugPrint('  - Movies: ${results[1].length} items');
-      debugPrint('  - TV Shows: ${results[2].length} items');
+      debugPrint('  - Continue Watching: ${results[0].length} items');
+      debugPrint('  - Recently Added: ${results[1].length} items');
+      debugPrint('  - Movies: ${results[2].length} items');
+      debugPrint('  - TV Shows: ${results[3].length} items');
 
       if (mounted) {
         setState(() {
-          _recentlyAdded = results[0];
-          _movies = results[1];
-          _tvShows = results[2];
+          _continueWatching = results[0];
+          _recentlyAdded = results[1];
+          _movies = results[2];
+          _tvShows = results[3];
         });
       }
     } catch (e, stackTrace) {
@@ -230,6 +234,17 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
             _buildFeaturedSection(_recentlyAdded.first),
 
           const SizedBox(height: 20),
+
+          // Continue Watching category (highest priority)
+          if (_continueWatching.isNotEmpty) ...[
+            _buildContentRow(
+              'Continue Watching',
+              _continueWatching,
+              isJellyfin: true,
+              showProgress: true,
+            ),
+            const SizedBox(height: 20),
+          ],
 
           // Recently Added category
           _buildContentRow(
@@ -394,7 +409,7 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     );
   }
 
-  Widget _buildContentRow(String title, List<dynamic> items, {required bool isJellyfin}) {
+  Widget _buildContentRow(String title, List<dynamic> items, {required bool isJellyfin, bool showProgress = false}) {
     // If empty, show placeholder cards to demonstrate the UI
     final displayItems = items.isEmpty ? List.filled(5, null) : items;
 
@@ -442,7 +457,7 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final item = items[index];
-                    return _buildContentCard(item, isJellyfin);
+                    return _buildContentCard(item, isJellyfin, showProgress: showProgress);
                   },
                 ),
         ),
@@ -485,10 +500,16 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     );
   }
 
-  Widget _buildContentCard(dynamic item, bool isJellyfin) {
+  Widget _buildContentCard(dynamic item, bool isJellyfin, {bool showProgress = false}) {
     final imageUrl = isJellyfin
         ? _jellyfinService.getImageUrl(item['Id'])
         : _jellyseerrService.getImageUrl(item['posterPath']);
+
+    // Get progress percentage if available
+    double? progressPercent;
+    if (showProgress && item['UserData'] != null) {
+      progressPercent = (item['UserData']['PlayedPercentage'] ?? 0.0).toDouble() / 100.0;
+    }
 
     return GestureDetector(
       onTap: () => isJellyfin ? _playItem(item) : _showDetails(item, isJellyfin),
@@ -497,18 +518,52 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
         margin: const EdgeInsets.symmetric(horizontal: 4),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: CachedNetworkImage(
-            imageUrl: imageUrl,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => Shimmer.fromColors(
-              baseColor: Colors.grey[900]!,
-              highlightColor: Colors.grey[800]!,
-              child: Container(color: Colors.grey[900]),
-            ),
-            errorWidget: (context, url, error) => Container(
-              color: Colors.grey[900],
-              child: const Icon(Icons.movie, color: Colors.white24),
-            ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CachedNetworkImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Shimmer.fromColors(
+                  baseColor: Colors.grey[900]!,
+                  highlightColor: Colors.grey[800]!,
+                  child: Container(color: Colors.grey[900]),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  color: Colors.grey[900],
+                  child: const Icon(Icons.movie, color: Colors.white24),
+                ),
+              ),
+
+              // Progress bar overlay
+              if (showProgress && progressPercent != null && progressPercent > 0)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Progress bar
+                      Container(
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.5),
+                        ),
+                        child: FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: progressPercent,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.blueAccent,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ),
       ),

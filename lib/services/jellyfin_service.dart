@@ -216,6 +216,108 @@ class JellyfinService {
         'Static=true';
   }
 
+  // Get continue watching items (items with playback progress)
+  Future<List<dynamic>> getContinueWatching() async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    try {
+      _logger.i('▶️ Fetching continue watching items...');
+      final response = await http.get(
+        Uri.parse('$baseUrl/Users/$_userId/Items/Resume?'
+            'Recursive=true&'
+            'Fields=PrimaryImageAspectRatio,Overview&'
+            'ImageTypeLimit=1&'
+            'EnableImageTypes=Primary,Backdrop,Thumb&'
+            'MediaTypes=Video'),
+        headers: _getHeaders(),
+      );
+
+      _logger.i('▶️ Continue watching response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['Items'] ?? [];
+        _logger.i('▶️ Found ${items.length} continue watching items');
+        return items;
+      }
+      return [];
+    } catch (e) {
+      _logger.e('❌ Error fetching continue watching: $e');
+      return [];
+    }
+  }
+
+  // Report playback started
+  Future<void> reportPlaybackStart(String itemId, {int? positionTicks}) async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/Sessions/Playing'),
+        headers: _getHeaders(),
+        body: json.encode({
+          'ItemId': itemId,
+          'PositionTicks': positionTicks ?? 0,
+          'IsPaused': false,
+          'IsMuted': false,
+          'PlayMethod': 'DirectPlay',
+        }),
+      );
+      _logger.d('▶️ Reported playback start for $itemId');
+    } catch (e) {
+      _logger.e('❌ Error reporting playback start: $e');
+    }
+  }
+
+  // Report playback progress
+  Future<void> reportPlaybackProgress(String itemId, int positionTicks, bool isPaused) async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/Sessions/Playing/Progress'),
+        headers: _getHeaders(),
+        body: json.encode({
+          'ItemId': itemId,
+          'PositionTicks': positionTicks,
+          'IsPaused': isPaused,
+          'PlayMethod': 'DirectPlay',
+        }),
+      );
+      _logger.d('▶️ Reported playback progress: ${positionTicks ~/ 10000000}s');
+    } catch (e) {
+      _logger.e('❌ Error reporting playback progress: $e');
+    }
+  }
+
+  // Report playback stopped
+  Future<void> reportPlaybackStopped(String itemId, int positionTicks) async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/Sessions/Playing/Stopped'),
+        headers: _getHeaders(),
+        body: json.encode({
+          'ItemId': itemId,
+          'PositionTicks': positionTicks,
+          'PlayMethod': 'DirectPlay',
+        }),
+      );
+      _logger.i('⏹️ Reported playback stopped at ${positionTicks ~/ 10000000}s');
+    } catch (e) {
+      _logger.e('❌ Error reporting playback stopped: $e');
+    }
+  }
+
   // Get seasons for a TV show
   Future<List<dynamic>> getSeasons(String seriesId) async {
     if (_accessToken == null || _userId == null) {

@@ -24,6 +24,8 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
   bool _isLoading = true;
   bool _showControls = true;
   Timer? _hideControlsTimer;
+  Timer? _progressReportTimer;
+  int? _savedPositionTicks;
 
   @override
   void initState() {
@@ -41,6 +43,13 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
   }
 
   Future<void> _initializePlayer() async {
+    // Get item details to check for saved playback position
+    final itemDetails = await _jellyfinService.getItemDetails(widget.itemId);
+    if (itemDetails != null && itemDetails['UserData'] != null) {
+      _savedPositionTicks = itemDetails['UserData']['PlaybackPositionTicks'] ?? 0;
+      debugPrint('▶️ Found saved position: ${_savedPositionTicks! ~/ 10000000}s');
+    }
+
     final streamUrl = _jellyfinService.getStreamUrl(widget.itemId);
 
     _controller = VideoPlayerController.networkUrl(
@@ -50,12 +59,41 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
 
     try {
       await _controller!.initialize();
+
+      // Resume from saved position if it exists (and it's not at the end)
+      if (_savedPositionTicks != null && _savedPositionTicks! > 0) {
+        final savedSeconds = _savedPositionTicks! ~/ 10000000;
+        final duration = _controller!.value.duration.inSeconds;
+
+        // Only resume if we're not within the last 5% of the video
+        if (savedSeconds < duration * 0.95) {
+          await _controller!.seekTo(Duration(seconds: savedSeconds));
+          debugPrint('▶️ Resumed from ${savedSeconds}s');
+        }
+      }
+
       await _controller!.play();
       setState(() => _isLoading = false);
       _startHideControlsTimer();
 
+      // Report playback started
+      _jellyfinService.reportPlaybackStart(
+        widget.itemId,
+        positionTicks: _savedPositionTicks ?? 0,
+      );
+
+      // Start periodic progress reporting (every 10 seconds)
+      _startProgressReporting();
+
       _controller!.addListener(() {
-        if (mounted) setState(() {});
+        if (mounted) {
+          setState(() {});
+
+          // Check if video ended
+          if (_controller!.value.position >= _controller!.value.duration) {
+            _onVideoEnded();
+          }
+        }
       });
     } catch (e) {
       debugPrint('Error initializing video player: $e');
@@ -67,6 +105,33 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
           ),
         );
       }
+    }
+  }
+
+  void _startProgressReporting() {
+    _progressReportTimer?.cancel();
+    _progressReportTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (_controller != null && _controller!.value.isInitialized) {
+        final positionTicks = _controller!.value.position.inMilliseconds * 10000;
+        final isPaused = !_controller!.value.isPlaying;
+        _jellyfinService.reportPlaybackProgress(
+          widget.itemId,
+          positionTicks,
+          isPaused,
+        );
+      }
+    });
+  }
+
+  void _onVideoEnded() {
+    debugPrint('▶️ Video ended');
+    _reportStopAndExit();
+  }
+
+  Future<void> _reportStopAndExit() async {
+    if (_controller != null && _controller!.value.isInitialized) {
+      final positionTicks = _controller!.value.position.inMilliseconds * 10000;
+      await _jellyfinService.reportPlaybackStopped(widget.itemId, positionTicks);
     }
   }
 
@@ -91,6 +156,14 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
   @override
   void dispose() {
     _hideControlsTimer?.cancel();
+    _progressReportTimer?.cancel();
+
+    // Report playback stopped before disposing
+    if (_controller != null && _controller!.value.isInitialized) {
+      final positionTicks = _controller!.value.position.inMilliseconds * 10000;
+      _jellyfinService.reportPlaybackStopped(widget.itemId, positionTicks);
+    }
+
     _controller?.dispose();
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
