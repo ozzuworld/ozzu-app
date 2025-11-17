@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../services/headscale_service.dart';
 import '../services/vpn_manager.dart';
-import 'security_settings_screen.dart';
 
 /// Security screen with VPN-style UI for headscale integration
 class SecurityScreen extends StatefulWidget {
@@ -46,9 +45,7 @@ class _SecurityScreenState extends State<SecurityScreen> with TickerProviderStat
     await _headscaleService.initialize();
     await _vpnManager.initialize();
 
-    if (_headscaleService.isConfigured) {
-      _loadNodes();
-    }
+    // No configuration needed - OIDC handles everything automatically
 
     setState(() {
       _connectionState = _vpnManager.currentState;
@@ -70,8 +67,8 @@ class _SecurityScreenState extends State<SecurityScreen> with TickerProviderStat
   }
 
   Future<void> _loadNodes() async {
-    if (!_headscaleService.isConfigured) return;
-
+    // Only load nodes if we have API credentials (optional feature)
+    // Most users won't need this with OIDC
     setState(() {
       _loadingNodes = true;
     });
@@ -86,15 +83,7 @@ class _SecurityScreenState extends State<SecurityScreen> with TickerProviderStat
       setState(() {
         _loadingNodes = false;
       });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load devices: $e'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
+      // Silently fail - not critical for VPN connection
     }
   }
 
@@ -104,10 +93,7 @@ class _SecurityScreenState extends State<SecurityScreen> with TickerProviderStat
       return;
     }
 
-    if (!_headscaleService.isConfigured) {
-      _showConfigurationRequired();
-      return;
-    }
+    // No configuration needed - OIDC handles authentication automatically
 
     if (_connectionState == VPNConnectionState.connected) {
       await _vpnManager.disconnect();
@@ -116,58 +102,12 @@ class _SecurityScreenState extends State<SecurityScreen> with TickerProviderStat
       if (!success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Failed to connect to VPN'),
+            content: Text('Failed to connect to VPN. Please ensure you are logged in with Keycloak.'),
             backgroundColor: Colors.redAccent,
           ),
         );
       }
     }
-  }
-
-  void _showConfigurationRequired() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E2E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Configuration Required',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
-          'Please configure your headscale server in Settings before connecting.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _navigateToSettings();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.cyanAccent,
-              foregroundColor: Colors.black,
-            ),
-            child: const Text('Settings'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _navigateToSettings() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const SecuritySettingsScreen(),
-      ),
-    ).then((_) {
-      _initializeServices();
-    });
   }
 
   @override
@@ -189,19 +129,13 @@ class _SecurityScreenState extends State<SecurityScreen> with TickerProviderStat
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Security',
+          'VPN',
           style: TextStyle(
             color: Colors.white,
             fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.white),
-            onPressed: _navigateToSettings,
-          ),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadNodes,
@@ -361,7 +295,6 @@ class _SecurityScreenState extends State<SecurityScreen> with TickerProviderStat
   }
 
   Widget _buildConnectionInfo() {
-    final config = _headscaleService.configuration;
     final isConnected = _connectionState == VPNConnectionState.connected;
     final duration = _vpnManager.connectionDuration;
 
@@ -381,9 +314,9 @@ class _SecurityScreenState extends State<SecurityScreen> with TickerProviderStat
           ),
           child: Column(
             children: [
-              _buildInfoRow('Server', config['serverUrl'] ?? 'Not configured'),
+              _buildInfoRow('Server', HeadscaleService.defaultServerUrl),
               const Divider(color: Colors.white12, height: 24),
-              _buildInfoRow('User', config['username'] ?? 'Not configured'),
+              _buildInfoRow('Authentication', 'Keycloak SSO'),
               if (isConnected && duration != null) ...[
                 const Divider(color: Colors.white12, height: 24),
                 _buildInfoRow('Uptime', _formatDuration(duration)),
@@ -476,9 +409,7 @@ class _SecurityScreenState extends State<SecurityScreen> with TickerProviderStat
                   padding: const EdgeInsets.all(20),
                   child: Center(
                     child: Text(
-                      _headscaleService.isConfigured
-                          ? 'No devices found'
-                          : 'Configure headscale to view devices',
+                      'No devices found',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.5),
                         fontSize: 16,

@@ -48,7 +48,7 @@ class HeadscaleService {
     _logger.d('Loaded config - Server: $_serverUrl, Username: $_username, Registered: $_nodeRegistered');
   }
 
-  /// Save server configuration
+  /// Save server configuration (optional - only needed for API access to view nodes)
   Future<void> saveConfiguration({
     required String serverUrl,
     required String apiKey,
@@ -67,26 +67,10 @@ class HeadscaleService {
     _logger.d('Configuration saved successfully');
   }
 
-  /// Check if configuration is complete
-  bool get isConfigured {
-    return _serverUrl != null &&
-           _serverUrl!.isNotEmpty &&
-           _apiKey != null &&
-           _apiKey!.isNotEmpty &&
-           _username != null &&
-           _username!.isNotEmpty;
-  }
-
-  /// Get current configuration
-  Map<String, String?> get configuration => {
-    'serverUrl': _serverUrl,
-    'username': _username,
-  };
-
-  /// Test connection to headscale server
+  /// Test connection to headscale server (requires API key)
   Future<bool> testConnection() async {
-    if (!isConfigured) {
-      _logger.w('Cannot test connection - not configured');
+    if (_apiKey == null || _apiKey!.isEmpty) {
+      _logger.w('Cannot test connection - API key not configured');
       return false;
     }
 
@@ -94,7 +78,7 @@ class HeadscaleService {
       _logger.d('Testing connection to $_serverUrl');
 
       final response = await http.get(
-        Uri.parse('$_serverUrl/api/v1/user'),
+        Uri.parse('${_serverUrl ?? defaultServerUrl}/api/v1/user'),
         headers: {
           'Authorization': 'Bearer $_apiKey',
           'Content-Type': 'application/json',
@@ -109,17 +93,17 @@ class HeadscaleService {
     }
   }
 
-  /// Get list of nodes (devices) from headscale
+  /// Get list of nodes (devices) from headscale (requires API key)
   Future<List<HeadscaleNode>> getNodes() async {
-    if (!isConfigured) {
-      throw Exception('Headscale not configured');
+    if (_apiKey == null || _apiKey!.isEmpty) {
+      throw Exception('API key not configured. This is optional - VPN works without it.');
     }
 
     try {
       _logger.d('Fetching nodes from headscale');
 
       final response = await http.get(
-        Uri.parse('$_serverUrl/api/v1/node'),
+        Uri.parse('${_serverUrl ?? defaultServerUrl}/api/v1/node'),
         headers: {
           'Authorization': 'Bearer $_apiKey',
           'Content-Type': 'application/json',
@@ -141,17 +125,17 @@ class HeadscaleService {
     }
   }
 
-  /// Get current user information
+  /// Get current user information (requires API key)
   Future<Map<String, dynamic>?> getUserInfo() async {
-    if (!isConfigured) {
-      throw Exception('Headscale not configured');
+    if (_apiKey == null || _apiKey!.isEmpty || _username == null) {
+      throw Exception('API key and username not configured');
     }
 
     try {
       _logger.d('Fetching user info for $_username');
 
       final response = await http.get(
-        Uri.parse('$_serverUrl/api/v1/user/$_username'),
+        Uri.parse('${_serverUrl ?? defaultServerUrl}/api/v1/user/$_username'),
         headers: {
           'Authorization': 'Bearer $_apiKey',
           'Content-Type': 'application/json',
@@ -170,21 +154,21 @@ class HeadscaleService {
     }
   }
 
-  /// Create a pre-authentication key for registering new devices
+  /// Create a pre-authentication key for registering new devices (requires API key)
   Future<String?> createPreAuthKey({
     bool reusable = false,
     bool ephemeral = false,
     Duration? expiration,
   }) async {
-    if (!isConfigured) {
-      throw Exception('Headscale not configured');
+    if (_apiKey == null || _apiKey!.isEmpty || _username == null) {
+      throw Exception('API key and username not configured');
     }
 
     try {
       _logger.d('Creating pre-auth key');
 
       final response = await http.post(
-        Uri.parse('$_serverUrl/api/v1/preauthkey'),
+        Uri.parse('${_serverUrl ?? defaultServerUrl}/api/v1/preauthkey'),
         headers: {
           'Authorization': 'Bearer $_apiKey',
           'Content-Type': 'application/json',
