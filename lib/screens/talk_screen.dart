@@ -1003,13 +1003,22 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
               ),
             ),
 
-            // Central room node (behind participants in 3D space)
+            // Central room node (FAR in the background - small and blurred)
             Positioned(
-              left: centerX - 35,
-              top: centerY - 35,
-              child: Opacity(
-                opacity: 0.7, // Slightly dimmer to appear "behind"
-                child: _buildCentralRoomNode(),
+              left: centerX - 20, // Much smaller (40px instead of 70px)
+              top: centerY - 20,
+              child: Transform.scale(
+                scale: 0.55, // Scale down to look far away
+                child: Opacity(
+                  opacity: 0.5, // Much dimmer to appear far away
+                  child: ImageFiltered(
+                    imageFilter: ImageFilter.blur(
+                      sigmaX: 4.0, // Heavy blur for depth of field
+                      sigmaY: 4.0,
+                    ),
+                    child: _buildCentralRoomNode(),
+                  ),
+                ),
               ),
             ),
 
@@ -1117,12 +1126,18 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     final relX = x + (size / 2) - centerX;
     final relY = y + (size / 2) - centerY;
 
-    // Depth-based scale (closer = larger)
-    final depthScale = 0.85 + (depth * 0.3); // Range: 0.85 to 1.15
+    // DRAMATIC depth-based scale (closer = MUCH larger)
+    final depthScale = 0.6 + (depth * 0.8); // Range: 0.6 to 1.4 (dramatic!)
 
-    // Subtle billboard rotation based on position (always facing viewer)
-    final rotateY = (relX / screenSize) * 0.15; // Max ±0.15 radians
-    final rotateX = -(relY / screenSize) * 0.15; // Negative for natural feel
+    // Depth-based opacity (far = dimmer, creates atmospheric depth)
+    final depthOpacity = 0.7 + (depth * 0.3); // Range: 0.7 to 1.0
+
+    // Depth-based blur (far = blurrier, simulates depth of field)
+    final depthBlur = (1.0 - depth) * 3.0; // Range: 0 to 3.0 (close = sharp, far = blurred)
+
+    // Billboard rotation based on position (always facing viewer)
+    final rotateY = (relX / screenSize) * 0.2; // Max ±0.2 radians
+    final rotateX = -(relY / screenSize) * 0.2;
 
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 16), // Smooth 60fps interpolation
@@ -1136,14 +1151,22 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
         builder: (context, entranceValue, child) {
           return Transform(
             transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.001) // Perspective strength
-              ..rotateX(rotateX * entranceValue) // Billboard Y-axis (subtle)
-              ..rotateY(rotateY * entranceValue) // Billboard X-axis (subtle)
+              ..setEntry(3, 2, 0.004) // STRONGER perspective for dramatic depth!
+              ..rotateX(rotateX * entranceValue)
+              ..rotateY(rotateY * entranceValue)
               ..scale(depthScale * entranceValue),
             alignment: Alignment.center,
             child: Opacity(
-              opacity: entranceValue,
-              child: child,
+              opacity: entranceValue * depthOpacity, // Depth-aware opacity
+              child: depthBlur > 0.5
+                  ? ImageFiltered(
+                      imageFilter: ImageFilter.blur(
+                        sigmaX: depthBlur,
+                        sigmaY: depthBlur,
+                      ),
+                      child: child,
+                    )
+                  : child,
             ),
           );
         },
@@ -1167,10 +1190,11 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
       }
     }
 
-    // Depth-based shadow intensity (closer = stronger shadow)
-    final shadowOpacity = 0.2 + (depth * 0.4); // Range: 0.2 to 0.6
-    final shadowBlur = 15.0 + (depth * 25.0); // Range: 15 to 40
-    final shadowSpread = depth * 5.0; // Range: 0 to 5
+    // DRAMATIC depth-based shadow intensity (closer = MUCH stronger shadow)
+    final shadowOpacity = 0.15 + (depth * 0.6); // Range: 0.15 to 0.75
+    final shadowBlur = 10.0 + (depth * 40.0); // Range: 10 to 50
+    final shadowSpread = depth * 8.0; // Range: 0 to 8
+    final shadowOffset = depth * 12.0; // Range: 0 to 12
 
     return Container(
       width: size,
@@ -1181,22 +1205,29 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
-              // Main depth shadow
+              // Main depth shadow (creates 3D floating effect)
               BoxShadow(
-                color: Colors.black.withOpacity(shadowOpacity * 0.8),
+                color: Colors.black.withOpacity(shadowOpacity),
                 blurRadius: shadowBlur,
                 spreadRadius: shadowSpread,
-                offset: Offset(0, depth * 8), // Vertical offset based on depth
+                offset: Offset(0, shadowOffset), // Vertical offset based on depth
               ),
-              // Colored glow shadow
+              // Ambient shadow (softer, larger)
+              BoxShadow(
+                color: Colors.black.withOpacity(shadowOpacity * 0.4),
+                blurRadius: shadowBlur * 1.5,
+                spreadRadius: shadowSpread * 0.5,
+                offset: Offset(0, shadowOffset * 0.5),
+              ),
+              // Colored glow shadow (depth-aware)
               BoxShadow(
                 color: isLocal
-                    ? Colors.blue.withOpacity(0.4 * depth)
+                    ? Colors.blue.withOpacity(0.5 * depth)
                     : isSpeaking
-                        ? Colors.green.withOpacity(0.5 * depth)
-                        : Colors.white.withOpacity(0.2 * depth),
-                blurRadius: isSpeaking ? 30 : 20,
-                spreadRadius: isSpeaking ? 3 : 1,
+                        ? Colors.green.withOpacity(0.6 * depth)
+                        : Colors.white.withOpacity(0.25 * depth),
+                blurRadius: isSpeaking ? 35 : 25,
+                spreadRadius: isSpeaking ? 4 : 2,
               ),
             ],
           ),
@@ -1450,11 +1481,11 @@ class _ParticipantConnectionsPainter extends CustomPainter {
       final participantX = centerX + radius * math.cos(angle);
       final participantY = centerY + radius * math.sin(angle);
 
-      // Depth-based line styling (closer = brighter & thicker)
-      final lineOpacity = 0.08 + (depth * 0.15); // Range: 0.08 to 0.23
-      final lineWidth = 1.0 + (depth * 1.5); // Range: 1.0 to 2.5
-      final glowOpacity = 0.03 + (depth * 0.08); // Range: 0.03 to 0.11
-      final glowWidth = 3.0 + (depth * 4.0); // Range: 3.0 to 7.0
+      // DRAMATIC depth-based line styling (closer = MUCH brighter & thicker)
+      final lineOpacity = 0.05 + (depth * 0.3); // Range: 0.05 to 0.35
+      final lineWidth = 0.5 + (depth * 2.5); // Range: 0.5 to 3.0
+      final glowOpacity = 0.02 + (depth * 0.15); // Range: 0.02 to 0.17
+      final glowWidth = 2.0 + (depth * 8.0); // Range: 2.0 to 10.0
 
       final paint = Paint()
         ..color = Colors.white.withOpacity(lineOpacity)
