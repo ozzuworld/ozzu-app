@@ -6,6 +6,7 @@ import 'package:shimmer/shimmer.dart';
 import '../services/jellyfin_service.dart';
 import '../services/jellyseerr_service.dart';
 import 'tv_player_screen.dart';
+import 'tv_show_details_screen.dart';
 
 class TVBrowseScreen extends StatefulWidget {
   const TVBrowseScreen({super.key});
@@ -519,31 +520,15 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     final title = item['Name'];
     final itemType = item['Type'];
 
-    // Check if this is a TV Series - if so, show error for now
-    // In the future, we'll navigate to a seasons/episodes screen
+    // Check if this is a TV Series - navigate to seasons/episodes screen
     if (itemType == 'Series') {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: Colors.black.withOpacity(0.9),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.white.withOpacity(0.2)),
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TVShowDetailsScreen(
+            seriesId: itemId,
+            seriesName: title,
           ),
-          title: Text(
-            'TV Show',
-            style: const TextStyle(color: Colors.white),
-          ),
-          content: Text(
-            'Season and episode selection for TV shows is coming soon! For now, please use the Jellyfin web interface to watch $title.',
-            style: TextStyle(color: Colors.white.withOpacity(0.8)),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-          ],
         ),
       );
       return;
