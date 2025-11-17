@@ -98,6 +98,12 @@ class VPNManager {
 
       _logger.d('Device registered, starting WireGuard tunnel');
       _logger.d('Assigned IP: ${wgConfig.address}');
+      _logger.d('Server endpoint: ${wgConfig.serverEndpoint}');
+      _logger.d('Server public key: ${wgConfig.serverPublicKey}');
+
+      // Generate WireGuard config
+      final wgQuickConfig = wgConfig.toWgQuickConfig();
+      _logger.d('Generated WireGuard config:\n$wgQuickConfig');
 
       // Initialize WireGuard interface
       await _wireguardFlutterPlugin.initialize(interfaceName: 'ozzu_wg0');
@@ -105,7 +111,7 @@ class VPNManager {
       // Start VPN with WireGuard configuration
       await _wireguardFlutterPlugin.startVpn(
         serverAddress: wgConfig.serverEndpoint,
-        wgQuickConfig: wgConfig.toWgQuickConfig(),
+        wgQuickConfig: wgQuickConfig,
         providerBundleIdentifier: 'com.example.livekitvoiceapp',
       );
 
