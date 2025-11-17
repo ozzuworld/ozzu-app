@@ -158,20 +158,23 @@ class _ContentDetailsScreenState extends State<ContentDetailsScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Poster
+                    // Poster with Hero animation
                     if (posterPath != null)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: CachedNetworkImage(
-                          imageUrl: _jellyseerrService.getImageUrl(posterPath),
-                          width: 120,
-                          height: 180,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, error) => Container(
+                      Hero(
+                        tag: 'content_jellyseerr_${widget.tmdbId}',
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: CachedNetworkImage(
+                            imageUrl: _jellyseerrService.getImageUrl(posterPath),
                             width: 120,
                             height: 180,
-                            color: Colors.grey[900],
-                            child: const Icon(Icons.movie, color: Colors.white24),
+                            fit: BoxFit.cover,
+                            errorWidget: (context, url, error) => Container(
+                              width: 120,
+                              height: 180,
+                              color: Colors.grey[900],
+                              child: const Icon(Icons.movie, color: Colors.white24),
+                            ),
                           ),
                         ),
                       ),

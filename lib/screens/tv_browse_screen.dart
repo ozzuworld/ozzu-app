@@ -594,14 +594,21 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
       progressPercent = (item['UserData']['PlayedPercentage'] ?? 0.0).toDouble() / 100.0;
     }
 
+    // Create unique hero tag
+    final heroTag = isJellyfin
+        ? 'content_${item['Id']}'
+        : 'content_jellyseerr_${item['id']}';
+
     return GestureDetector(
       onTap: () => isJellyfin ? _playItem(item) : _showDetails(item, isJellyfin),
-      child: Container(
-        width: 120,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Stack(
+      child: Hero(
+        tag: heroTag,
+        child: Container(
+          width: 120,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Stack(
             fit: StackFit.expand,
             children: [
               CachedNetworkImage(
@@ -650,6 +657,7 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
           ),
         ),
       ),
+        ),
     );
   }
 
