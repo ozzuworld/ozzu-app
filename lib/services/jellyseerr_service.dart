@@ -68,66 +68,69 @@ class JellyseerrService {
     };
   }
 
-  // Get trending movies
-  Future<List<dynamic>> getTrendingMovies() async {
+  // Get all trending content (movies and TV)
+  Future<List<dynamic>> getTrending() async {
     try {
-      _logger.i('🔥 Fetching trending movies from Jellyseerr...');
+      _logger.i('🔥 Fetching trending content from Jellyseerr...');
       final response = await http.get(
-        Uri.parse('$baseUrl/api/v1/discover/movies/trending'),
+        Uri.parse('$baseUrl/api/v1/discover/trending'),
         headers: _getHeaders(),
       );
 
-      _logger.i('🔥 Trending movies response: ${response.statusCode}');
+      _logger.i('🔥 Trending response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final results = data['results'] ?? [];
-        _logger.i('🔥 Found ${results.length} trending movies');
+        _logger.i('🔥 Found ${results.length} trending items');
+        if (results.isNotEmpty) {
+          _logger.d('🔥 First item: ${results[0]['title'] ?? results[0]['name']} (Type: ${results[0]['mediaType']})');
+        }
         return results;
       }
-      _logger.w('🔥 Failed to fetch trending movies: ${response.statusCode}');
+      _logger.w('🔥 Failed to fetch trending: ${response.statusCode}');
       _logger.w('Response: ${response.body}');
       return [];
     } catch (e) {
-      _logger.e('❌ Error fetching trending movies: $e');
+      _logger.e('❌ Error fetching trending: $e');
       return [];
     }
   }
 
-  // Get trending TV shows
-  Future<List<dynamic>> getTrendingTV() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/api/v1/discover/tv/trending'),
-        headers: _getHeaders(),
-      );
+  // Get trending movies (filter from trending)
+  Future<List<dynamic>> getTrendingMovies() async {
+    final trending = await getTrending();
+    return trending.where((item) => item['mediaType'] == 'movie').toList();
+  }
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return data['results'] ?? [];
-      }
-      return [];
-    } catch (e) {
-      _logger.e('Error fetching trending TV: $e');
-      return [];
-    }
+  // Get trending TV shows (filter from trending)
+  Future<List<dynamic>> getTrendingTV() async {
+    final trending = await getTrending();
+    return trending.where((item) => item['mediaType'] == 'tv').toList();
   }
 
   // Get popular movies
   Future<List<dynamic>> getPopularMovies() async {
     try {
+      _logger.i('⭐ Fetching popular movies from Jellyseerr...');
       final response = await http.get(
-        Uri.parse('$baseUrl/api/v1/discover/movies/popular'),
+        Uri.parse('$baseUrl/api/v1/discover/movies'),
         headers: _getHeaders(),
       );
 
+      _logger.i('⭐ Popular movies response: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['results'] ?? [];
+        final results = data['results'] ?? [];
+        _logger.i('⭐ Found ${results.length} popular movies');
+        return results;
       }
+      _logger.w('⭐ Failed to fetch popular movies: ${response.statusCode}');
+      _logger.w('Response: ${response.body}');
       return [];
     } catch (e) {
-      _logger.e('Error fetching popular movies: $e');
+      _logger.e('❌ Error fetching popular movies: $e');
       return [];
     }
   }
@@ -135,18 +138,25 @@ class JellyseerrService {
   // Get popular TV shows
   Future<List<dynamic>> getPopularTV() async {
     try {
+      _logger.i('📺 Fetching popular TV from Jellyseerr...');
       final response = await http.get(
-        Uri.parse('$baseUrl/api/v1/discover/tv/popular'),
+        Uri.parse('$baseUrl/api/v1/discover/tv'),
         headers: _getHeaders(),
       );
 
+      _logger.i('📺 Popular TV response: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['results'] ?? [];
+        final results = data['results'] ?? [];
+        _logger.i('📺 Found ${results.length} popular TV shows');
+        return results;
       }
+      _logger.w('📺 Failed to fetch popular TV: ${response.statusCode}');
+      _logger.w('Response: ${response.body}');
       return [];
     } catch (e) {
-      _logger.e('Error fetching popular TV: $e');
+      _logger.e('❌ Error fetching popular TV: $e');
       return [];
     }
   }
@@ -154,18 +164,25 @@ class JellyseerrService {
   // Get upcoming movies
   Future<List<dynamic>> getUpcomingMovies() async {
     try {
+      _logger.i('🎬 Fetching upcoming movies from Jellyseerr...');
       final response = await http.get(
         Uri.parse('$baseUrl/api/v1/discover/movies/upcoming'),
         headers: _getHeaders(),
       );
 
+      _logger.i('🎬 Upcoming movies response: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['results'] ?? [];
+        final results = data['results'] ?? [];
+        _logger.i('🎬 Found ${results.length} upcoming movies');
+        return results;
       }
+      _logger.w('🎬 Failed to fetch upcoming movies: ${response.statusCode}');
+      _logger.w('Response: ${response.body}');
       return [];
     } catch (e) {
-      _logger.e('Error fetching upcoming movies: $e');
+      _logger.e('❌ Error fetching upcoming movies: $e');
       return [];
     }
   }
