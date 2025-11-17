@@ -8,7 +8,8 @@ import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import '../services/keycloak_service.dart';
 import 'login_screen.dart';
-import 'media_menu_screen.dart';
+import 'main_navigation_screen.dart';
+import 'music_browse_screen.dart';
 
 class VoiceCallScreen extends StatefulWidget {
   final bool startUnmuted;
@@ -22,6 +23,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
   bool _showMenu = false;
+  bool _mediaExpanded = false;
   Room? room;
   bool isConnected = false;
   bool isMuted = true;
@@ -398,16 +400,77 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
               Divider(color: Colors.white.withOpacity(0.1), height: 1),
 
-              // Media
+              // Media (expandable)
               _buildGlassMenuItem(
                 icon: Icons.movie,
                 label: 'Media',
                 statusColor: Colors.blueAccent,
+                trailing: Icon(
+                  _mediaExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: Colors.white.withOpacity(0.6),
+                  size: 20,
+                ),
                 onTap: () {
-                  setState(() => _showMenu = false);
-                  _showMediaSettings();
+                  setState(() => _mediaExpanded = !_mediaExpanded);
                 },
               ),
+
+              // Media sub-items (TV & Music)
+              if (_mediaExpanded) ...[
+                _buildGlassSubMenuItem(
+                  icon: Icons.tv,
+                  label: 'TV',
+                  statusColor: Colors.blueAccent,
+                  onTap: () {
+                    setState(() {
+                      _showMenu = false;
+                      _mediaExpanded = false;
+                    });
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const MainNavigationScreen(initialTab: 0),
+                      ),
+                    );
+                  },
+                ),
+                _buildGlassSubMenuItem(
+                  icon: Icons.music_note,
+                  label: 'Music',
+                  statusColor: Colors.greenAccent,
+                  onTap: () {
+                    setState(() {
+                      _showMenu = false;
+                      _mediaExpanded = false;
+                    });
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => Scaffold(
+                          backgroundColor: Colors.black,
+                          appBar: AppBar(
+                            backgroundColor: Colors.black,
+                            elevation: 0,
+                            leading: IconButton(
+                              icon: const Icon(Icons.arrow_back, color: Colors.white),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                            title: const Text(
+                              'Music',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          body: const MusicBrowseScreen(),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
 
               Divider(color: Colors.white.withOpacity(0.1), height: 1),
 
@@ -433,6 +496,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     required String label,
     required Color statusColor,
     required VoidCallback onTap,
+    Widget? trailing,
   }) {
     return Material(
       color: Colors.transparent,
@@ -455,16 +519,69 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                   ),
                 ),
               ),
+              if (trailing != null)
+                trailing
+              else
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: statusColor.withOpacity(0.6),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassSubMenuItem({
+    required IconData icon,
+    required String label,
+    required Color statusColor,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          margin: const EdgeInsets.only(left: 16),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.white.withOpacity(0.8), size: 18),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.85),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
               Container(
-                width: 8,
-                height: 8,
+                width: 6,
+                height: 6,
                 decoration: BoxDecoration(
                   color: statusColor,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: statusColor.withOpacity(0.6),
-                      blurRadius: 6,
+                      color: statusColor.withOpacity(0.5),
+                      blurRadius: 4,
                       spreadRadius: 1,
                     ),
                   ],
@@ -636,15 +753,6 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           ),
         ),
       ],
-    );
-  }
-
-  void _showMediaSettings() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const MediaMenuScreen(),
-      ),
     );
   }
 
