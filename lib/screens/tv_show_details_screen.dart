@@ -69,6 +69,8 @@ class _TVShowDetailsScreenState extends State<TVShowDetailsScreen> {
         builder: (context) => TVPlayerScreen(
           itemId: episodeId,
           title: fullTitle,
+          seriesId: widget.seriesId,
+          seriesName: widget.seriesName,
         ),
       ),
     );

@@ -7,11 +7,15 @@ import '../services/jellyfin_service.dart';
 class TVPlayerScreen extends StatefulWidget {
   final String itemId;
   final String title;
+  final String? seriesId;
+  final String? seriesName;
 
   const TVPlayerScreen({
     super.key,
     required this.itemId,
     required this.title,
+    this.seriesId,
+    this.seriesName,
   });
 
   @override
@@ -26,6 +30,12 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
   Timer? _hideControlsTimer;
   Timer? _progressReportTimer;
   int? _savedPositionTicks;
+
+  // Auto-play next episode state
+  bool _showNextEpisodeCountdown = false;
+  int _countdownSeconds = 10;
+  Timer? _countdownTimer;
+  Map<String, dynamic>? _nextEpisode;
 
   @override
   void initState() {
@@ -123,9 +133,83 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
     });
   }
 
-  void _onVideoEnded() {
+  Future<void> _onVideoEnded() async {
     debugPrint('▶️ Video ended');
-    _reportStopAndExit();
+
+    // Report playback stopped
+    if (_controller != null && _controller!.value.isInitialized) {
+      final positionTicks = _controller!.value.position.inMilliseconds * 10000;
+      await _jellyfinService.reportPlaybackStopped(widget.itemId, positionTicks);
+    }
+
+    // Check for next episode if this is a TV show
+    if (widget.seriesId != null) {
+      await _fetchAndShowNextEpisode();
+    } else {
+      // For movies, just exit
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    }
+  }
+
+  Future<void> _fetchAndShowNextEpisode() async {
+    // Fetch next episode
+    _nextEpisode = await _jellyfinService.getNextUp(widget.seriesId!);
+
+    if (_nextEpisode != null && mounted) {
+      // Show countdown overlay
+      setState(() {
+        _showNextEpisodeCountdown = true;
+        _countdownSeconds = 10;
+      });
+
+      // Start countdown timer
+      _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (_countdownSeconds > 0) {
+          setState(() => _countdownSeconds--);
+        } else {
+          timer.cancel();
+          _playNextEpisode();
+        }
+      });
+    } else {
+      // No next episode, exit
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    }
+  }
+
+  void _playNextEpisode() {
+    if (_nextEpisode != null && mounted) {
+      final episodeId = _nextEpisode!['Id'];
+      final seasonNum = _nextEpisode!['ParentIndexNumber'];
+      final episodeNum = _nextEpisode!['IndexNumber'];
+      final episodeName = _nextEpisode!['Name'];
+      final fullTitle = 'S${seasonNum}E${episodeNum} - $episodeName';
+
+      // Navigate to next episode
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TVPlayerScreen(
+            itemId: episodeId,
+            title: fullTitle,
+            seriesId: widget.seriesId,
+            seriesName: widget.seriesName,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _cancelNextEpisode() {
+    _countdownTimer?.cancel();
+    setState(() {
+      _showNextEpisodeCountdown = false;
+    });
+    Navigator.pop(context);
   }
 
   Future<void> _reportStopAndExit() async {
@@ -157,6 +241,7 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
   void dispose() {
     _hideControlsTimer?.cancel();
     _progressReportTimer?.cancel();
+    _countdownTimer?.cancel();
 
     // Report playback stopped before disposing
     if (_controller != null && _controller!.value.isInitialized) {
@@ -369,6 +454,91 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+
+            // Next episode countdown overlay
+            if (_showNextEpisodeCountdown && _nextEpisode != null)
+              Container(
+                color: Colors.black.withOpacity(0.8),
+                child: Center(
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.skip_next,
+                          color: Colors.blueAccent,
+                          size: 48,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Up Next',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _nextEpisode!['Name'] ?? 'Unknown',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 16,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'Playing in $_countdownSeconds seconds',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            OutlinedButton(
+                              onPressed: _cancelNextEpisode,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: const BorderSide(color: Colors.white),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 12,
+                                ),
+                              ),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: _playNextEpisode,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blueAccent,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 12,
+                                ),
+                              ),
+                              child: const Text('Play Now'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

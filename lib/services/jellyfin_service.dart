@@ -318,6 +318,36 @@ class JellyfinService {
     }
   }
 
+  // Get next episode up for a series (based on watch history)
+  Future<Map<String, dynamic>?> getNextUp(String seriesId) async {
+    if (_accessToken == null || _userId == null) {
+      await loadSavedCredentials();
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/Shows/NextUp?'
+            'userId=$_userId&'
+            'seriesId=$seriesId&'
+            'Fields=Overview'),
+        headers: _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['Items'] ?? [];
+        if (items.isNotEmpty) {
+          _logger.i('⏭️ Next up: ${items[0]['Name']}');
+          return items[0];
+        }
+      }
+      return null;
+    } catch (e) {
+      _logger.e('❌ Error fetching next up: $e');
+      return null;
+    }
+  }
+
   // Get seasons for a TV show
   Future<List<dynamic>> getSeasons(String seriesId) async {
     if (_accessToken == null || _userId == null) {
