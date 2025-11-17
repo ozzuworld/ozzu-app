@@ -384,111 +384,128 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              // Connection
-              _buildGlassMenuItem(
-                icon: Icons.wifi,
-                label: 'Connection',
-                statusColor: isConnected
-                    ? Colors.greenAccent
-                    : (isConnecting ? Colors.orangeAccent : Colors.redAccent),
-                onTap: () {
-                  setState(() => _showMenu = false);
-                  _showConnectionDetails();
-                },
-              ),
-
-              Divider(color: Colors.white.withOpacity(0.1), height: 1),
-
-              // Media (expandable)
-              _buildGlassMenuItem(
-                icon: Icons.movie,
-                label: 'Media',
-                statusColor: Colors.blueAccent,
-                trailing: Icon(
-                  _mediaExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: Colors.white.withOpacity(0.6),
-                  size: 20,
-                ),
-                onTap: () {
-                  setState(() => _mediaExpanded = !_mediaExpanded);
-                },
-              ),
-
-              // Media sub-items (TV & Music)
-              if (_mediaExpanded) ...[
-                _buildGlassSubMenuItem(
-                  icon: Icons.tv,
-                  label: 'TV',
-                  statusColor: Colors.blueAccent,
-                  onTap: () {
-                    setState(() {
-                      _showMenu = false;
-                      _mediaExpanded = false;
-                    });
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const MainNavigationScreen(initialTab: 0),
-                      ),
-                    );
-                  },
-                ),
-                _buildGlassSubMenuItem(
-                  icon: Icons.music_note,
-                  label: 'Music',
-                  statusColor: Colors.greenAccent,
-                  onTap: () {
-                    setState(() {
-                      _showMenu = false;
-                      _mediaExpanded = false;
-                    });
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => Scaffold(
-                          backgroundColor: Colors.black,
-                          appBar: AppBar(
-                            backgroundColor: Colors.black,
-                            elevation: 0,
-                            leading: IconButton(
-                              icon: const Icon(Icons.arrow_back, color: Colors.white),
-                              onPressed: () => Navigator.pop(context),
-                            ),
-                            title: const Text(
-                              'Music',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          body: const MusicBrowseScreen(),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
-
-              Divider(color: Colors.white.withOpacity(0.1), height: 1),
-
-              // Logout
-              _buildGlassMenuItem(
-                icon: Icons.logout,
-                label: 'Logout',
-                statusColor: Colors.redAccent,
-                onTap: () {
-                  setState(() => _showMenu = false);
-                  _logout();
-                },
-              ),
-            ],
+            children: _showMediaMenu ? _buildMediaMenuItems() : _buildMainMenuItems(),
           ),
         ),
       ),
     );
+  }
+
+  List<Widget> _buildMainMenuItems() {
+    return [
+      // Connection
+      _buildGlassMenuItem(
+        icon: Icons.wifi,
+        label: 'Connection',
+        statusColor: isConnected
+            ? Colors.greenAccent
+            : (isConnecting ? Colors.orangeAccent : Colors.redAccent),
+        onTap: () {
+          setState(() => _showMenu = false);
+          _showConnectionDetails();
+        },
+      ),
+
+      Divider(color: Colors.white.withOpacity(0.1), height: 1),
+
+      // Media
+      _buildGlassMenuItem(
+        icon: Icons.movie,
+        label: 'Media',
+        statusColor: Colors.blueAccent,
+        onTap: () {
+          setState(() => _showMediaMenu = true);
+        },
+      ),
+
+      Divider(color: Colors.white.withOpacity(0.1), height: 1),
+
+      // Logout
+      _buildGlassMenuItem(
+        icon: Icons.logout,
+        label: 'Logout',
+        statusColor: Colors.redAccent,
+        onTap: () {
+          setState(() => _showMenu = false);
+          _logout();
+        },
+      ),
+    ];
+  }
+
+  List<Widget> _buildMediaMenuItems() {
+    return [
+      // Back button
+      _buildGlassMenuItem(
+        icon: Icons.arrow_back,
+        label: 'Back',
+        statusColor: Colors.white.withOpacity(0.5),
+        onTap: () {
+          setState(() => _showMediaMenu = false);
+        },
+      ),
+
+      Divider(color: Colors.white.withOpacity(0.1), height: 1),
+
+      // TV
+      _buildGlassMenuItem(
+        icon: Icons.tv,
+        label: 'TV',
+        statusColor: Colors.blueAccent,
+        onTap: () {
+          setState(() {
+            _showMenu = false;
+            _showMediaMenu = false;
+          });
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MainNavigationScreen(initialTab: 0),
+            ),
+          );
+        },
+      ),
+
+      Divider(color: Colors.white.withOpacity(0.1), height: 1),
+
+      // Music
+      _buildGlassMenuItem(
+        icon: Icons.music_note,
+        label: 'Music',
+        statusColor: Colors.greenAccent,
+        onTap: () {
+          setState(() {
+            _showMenu = false;
+            _showMediaMenu = false;
+          });
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => Scaffold(
+                backgroundColor: Colors.black,
+                appBar: AppBar(
+                  backgroundColor: Colors.black,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  title: const Text(
+                    'Music',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                body: const MusicBrowseScreen(),
+              ),
+            ),
+          );
+        },
+      ),
+    ];
   }
 
   Widget _buildGlassMenuItem({
@@ -496,7 +513,6 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     required String label,
     required Color statusColor,
     required VoidCallback onTap,
-    Widget? trailing,
   }) {
     return Material(
       color: Colors.transparent,
@@ -519,69 +535,16 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                   ),
                 ),
               ),
-              if (trailing != null)
-                trailing
-              else
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: statusColor.withOpacity(0.6),
-                        blurRadius: 6,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGlassSubMenuItem({
-    required IconData icon,
-    required String label,
-    required Color statusColor,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          margin: const EdgeInsets.only(left: 16),
-          child: Row(
-            children: [
-              Icon(icon, color: Colors.white.withOpacity(0.8), size: 18),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ),
               Container(
-                width: 6,
-                height: 6,
+                width: 8,
+                height: 8,
                 decoration: BoxDecoration(
                   color: statusColor,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: statusColor.withOpacity(0.5),
-                      blurRadius: 4,
+                      color: statusColor.withOpacity(0.6),
+                      blurRadius: 6,
                       spreadRadius: 1,
                     ),
                   ],
