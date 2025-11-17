@@ -973,8 +973,8 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
         final centerY = constraints.maxHeight / 2;
         final participantCount = _participants.length;
 
-        // Size of participant squares (small gaming-style)
-        const participantSize = 100.0;
+        // Size of participant hexagons (40% bigger than original 100px)
+        const participantSize = 140.0;
 
         // Radius for participant orbit - scales with screen size
         final baseRadius = math.min(constraints.maxWidth, constraints.maxHeight) * 0.32;
@@ -991,37 +991,6 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
 
         return Stack(
           children: [
-            // Connection lines from participants to center
-            CustomPaint(
-              size: Size(constraints.maxWidth, constraints.maxHeight),
-              painter: _ParticipantConnectionsPainter(
-                participants: _participants,
-                particlePhysics: _particlePhysics,
-                centerX: centerX,
-                centerY: centerY,
-                screenSize: math.min(constraints.maxWidth, constraints.maxHeight),
-              ),
-            ),
-
-            // Central room node (FAR in the background - small and blurred)
-            Positioned(
-              left: centerX - 20, // Much smaller (40px instead of 70px)
-              top: centerY - 20,
-              child: Transform.scale(
-                scale: 0.55, // Scale down to look far away
-                child: Opacity(
-                  opacity: 0.5, // Much dimmer to appear far away
-                  child: ImageFiltered(
-                    imageFilter: ImageFilter.blur(
-                      sigmaX: 4.0, // Heavy blur for depth of field
-                      sigmaY: 4.0,
-                    ),
-                    child: _buildCentralRoomNode(),
-                  ),
-                ),
-              ),
-            ),
-
             // Participant nodes sorted by depth (far to near)
             for (final i in sortedIndices)
               _buildFloatingParticipant(
@@ -1038,69 +1007,6 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Central room node - small circle (like a connection point)
-  Widget _buildCentralRoomNode() {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.elasticOut,
-      builder: (context, value, child) {
-        return Transform.scale(
-          scale: value,
-          child: child,
-        );
-      },
-      child: Container(
-        width: 70,
-        height: 70,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.purple.withOpacity(0.4),
-              Colors.blue.withOpacity(0.3),
-            ],
-          ),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.4),
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.purple.withOpacity(0.4),
-              blurRadius: 25,
-              spreadRadius: 3,
-            ),
-            BoxShadow(
-              color: Colors.blue.withOpacity(0.3),
-              blurRadius: 40,
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-        child: ClipOval(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.hub_rounded,
-                  color: Colors.white.withOpacity(0.95),
-                  size: 28,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   // Floating participant with 3D perspective transform
   Widget _buildFloatingParticipant({
@@ -1175,7 +1081,7 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Small gaming-style participant square with 3D depth
+  // Gaming-style hexagon participant tile with 3D depth
   Widget _buildSmallParticipantSquare(Participant participant, double size, double depth) {
     final isLocal = participant == _room?.localParticipant;
     final identity = participant.identity ?? 'Unknown';
@@ -1199,98 +1105,99 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
     return Container(
       width: size,
       height: size,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              // Main depth shadow (creates 3D floating effect)
-              BoxShadow(
-                color: Colors.black.withOpacity(shadowOpacity),
-                blurRadius: shadowBlur,
-                spreadRadius: shadowSpread,
-                offset: Offset(0, shadowOffset), // Vertical offset based on depth
-              ),
-              // Ambient shadow (softer, larger)
-              BoxShadow(
-                color: Colors.black.withOpacity(shadowOpacity * 0.4),
-                blurRadius: shadowBlur * 1.5,
-                spreadRadius: shadowSpread * 0.5,
-                offset: Offset(0, shadowOffset * 0.5),
-              ),
-              // Colored glow shadow (depth-aware)
-              BoxShadow(
-                color: isLocal
-                    ? Colors.blue.withOpacity(0.5 * depth)
-                    : isSpeaking
-                        ? Colors.green.withOpacity(0.6 * depth)
-                        : Colors.white.withOpacity(0.25 * depth),
-                blurRadius: isSpeaking ? 35 : 25,
-                spreadRadius: isSpeaking ? 4 : 2,
-              ),
-            ],
+      decoration: BoxDecoration(
+        boxShadow: [
+          // Main depth shadow (creates 3D floating effect)
+          BoxShadow(
+            color: Colors.black.withOpacity(shadowOpacity),
+            blurRadius: shadowBlur,
+            spreadRadius: shadowSpread,
+            offset: Offset(0, shadowOffset),
           ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Video or placeholder
-              if (videoTrack != null)
-                VideoTrackRenderer(videoTrack)
-              else
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF000000),
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.grey.shade900,
-                        Colors.black,
-                      ],
-                    ),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.person_outline,
-                      size: 32,
-                      color: Colors.white.withOpacity(0.3),
-                    ),
+          // Ambient shadow (softer, larger)
+          BoxShadow(
+            color: Colors.black.withOpacity(shadowOpacity * 0.4),
+            blurRadius: shadowBlur * 1.5,
+            spreadRadius: shadowSpread * 0.5,
+            offset: Offset(0, shadowOffset * 0.5),
+          ),
+          // Colored glow shadow (depth-aware)
+          BoxShadow(
+            color: isLocal
+                ? Colors.blue.withOpacity(0.5 * depth)
+                : isSpeaking
+                    ? Colors.green.withOpacity(0.6 * depth)
+                    : Colors.white.withOpacity(0.25 * depth),
+            blurRadius: isSpeaking ? 35 : 25,
+            spreadRadius: isSpeaking ? 4 : 2,
+          ),
+        ],
+      ),
+      child: ClipPath(
+        clipper: HexagonClipper(),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Video or placeholder fitted to hexagon
+            if (videoTrack != null)
+              FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: size,
+                  height: size,
+                  child: VideoTrackRenderer(videoTrack),
+                ),
+              )
+            else
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF000000),
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.grey.shade900,
+                      Colors.black,
+                    ],
                   ),
                 ),
-
-              // Border glow
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isLocal
-                          ? Colors.blue.withOpacity(0.6)
-                          : isSpeaking
-                              ? Colors.green.withOpacity(0.8)
-                              : Colors.white.withOpacity(0.2),
-                      width: isSpeaking ? 3 : 2,
-                    ),
+                child: Center(
+                  child: Icon(
+                    Icons.person_outline,
+                    size: 45,
+                    color: Colors.white.withOpacity(0.3),
                   ),
                 ),
               ),
 
-              // Name label overlay (bottom)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
+            // Hexagon border glow using CustomPaint
+            CustomPaint(
+              painter: HexagonBorderPainter(
+                borderColor: isLocal
+                    ? Colors.blue.withOpacity(0.6)
+                    : isSpeaking
+                        ? Colors.green.withOpacity(0.8)
+                        : Colors.white.withOpacity(0.2),
+                borderWidth: isSpeaking ? 3 : 2,
+              ),
+            ),
+
+            // Name label overlay (bottom)
+            Positioned(
+              bottom: 8,
+              left: 0,
+              right: 0,
+              child: Center(
                 child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                  borderRadius: BorderRadius.circular(8),
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           if (isLocal)
                             Container(
@@ -1306,21 +1213,20 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
                             Icon(
                               Icons.graphic_eq,
                               color: Colors.green.shade400,
-                              size: 10,
+                              size: 11,
                             ),
-                          const SizedBox(width: 2),
+                          if (isSpeaking) const SizedBox(width: 3),
                           Flexible(
                             child: Text(
-                              identity.length > 8 ? '${identity.substring(0, 8)}...' : identity,
+                              identity.length > 10 ? '${identity.substring(0, 10)}...' : identity,
                               style: TextStyle(
                                 color: Colors.white.withOpacity(0.9),
-                                fontSize: 9,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w600,
-                                letterSpacing: 0.2,
+                                letterSpacing: 0.3,
                               ),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
-                              textAlign: TextAlign.center,
                             ),
                           ),
                         ],
@@ -1329,8 +1235,8 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1439,98 +1345,66 @@ class _TalkScreenState extends State<TalkScreen> with TickerProviderStateMixin {
   }
 }
 
-// Custom painter for 3D connection lines with depth-aware styling
-class _ParticipantConnectionsPainter extends CustomPainter {
-  final List<Participant> participants;
-  final Map<String, ParticlePhysics> particlePhysics;
-  final double centerX;
-  final double centerY;
-  final double screenSize;
+// Hexagon clipper for gaming-style tiles
+class HexagonClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    final width = size.width;
+    final height = size.height;
 
-  _ParticipantConnectionsPainter({
-    required this.participants,
-    required this.particlePhysics,
-    required this.centerX,
-    required this.centerY,
-    required this.screenSize,
+    // Create a regular hexagon (flat top)
+    path.moveTo(width * 0.25, 0); // Top left
+    path.lineTo(width * 0.75, 0); // Top right
+    path.lineTo(width, height * 0.5); // Right
+    path.lineTo(width * 0.75, height); // Bottom right
+    path.lineTo(width * 0.25, height); // Bottom left
+    path.lineTo(0, height * 0.5); // Left
+    path.close();
+
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+// Hexagon border painter
+class HexagonBorderPainter extends CustomPainter {
+  final Color borderColor;
+  final double borderWidth;
+
+  HexagonBorderPainter({
+    required this.borderColor,
+    required this.borderWidth,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Sort participants by depth (far to near) for proper layering
-    final sortedIndices = List.generate(participants.length, (i) => i);
-    sortedIndices.sort((a, b) {
-      final idA = participants[a].identity ?? 'unknown-$a';
-      final idB = participants[b].identity ?? 'unknown-$b';
-      final depthA = particlePhysics[idA]?.currentDepth ?? 0.5;
-      final depthB = particlePhysics[idB]?.currentDepth ?? 0.5;
-      return depthA.compareTo(depthB); // Draw far first
-    });
-
-    // Draw lines from far to near
-    for (final i in sortedIndices) {
-      final participant = participants[i];
-      final id = participant.identity ?? 'unknown-$i';
-      final physics = particlePhysics[id];
-
-      if (physics == null) continue;
-
-      final angle = physics.currentAngle;
-      final radius = physics.currentRadius * screenSize;
-      final depth = physics.currentDepth;
-      final participantX = centerX + radius * math.cos(angle);
-      final participantY = centerY + radius * math.sin(angle);
-
-      // DRAMATIC depth-based line styling (closer = MUCH brighter & thicker)
-      final lineOpacity = 0.05 + (depth * 0.3); // Range: 0.05 to 0.35
-      final lineWidth = 0.5 + (depth * 2.5); // Range: 0.5 to 3.0
-      final glowOpacity = 0.02 + (depth * 0.15); // Range: 0.02 to 0.17
-      final glowWidth = 2.0 + (depth * 8.0); // Range: 2.0 to 10.0
-
-      final paint = Paint()
-        ..color = Colors.white.withOpacity(lineOpacity)
-        ..strokeWidth = lineWidth
-        ..style = PaintingStyle.stroke;
-
-      final glowPaint = Paint()
-        ..color = Colors.blue.withOpacity(glowOpacity)
-        ..strokeWidth = glowWidth
-        ..style = PaintingStyle.stroke
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-
-      // Draw glow line (rope effect with depth)
-      canvas.drawLine(
-        Offset(centerX, centerY),
-        Offset(participantX, participantY),
-        glowPaint,
-      );
-
-      // Draw main line
-      canvas.drawLine(
-        Offset(centerX, centerY),
-        Offset(participantX, participantY),
-        paint,
-      );
-
-      // Draw connection dot (size based on depth)
-      final dotSize = 2.0 + (depth * 1.5);
-      final dotPaint = Paint()
-        ..color = Colors.white.withOpacity(0.2 + (depth * 0.3))
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(Offset(participantX, participantY), dotSize, dotPaint);
-    }
-
-    // Draw central node circle outline (behind everything)
-    final centralPaint = Paint()
-      ..color = Colors.purple.withOpacity(0.2)
-      ..strokeWidth = 1.5
+    final paint = Paint()
+      ..color = borderColor
+      ..strokeWidth = borderWidth
       ..style = PaintingStyle.stroke;
-    canvas.drawCircle(Offset(centerX, centerY), 40, centralPaint);
+
+    final width = size.width;
+    final height = size.height;
+
+    final path = Path();
+    path.moveTo(width * 0.25, 0);
+    path.lineTo(width * 0.75, 0);
+    path.lineTo(width, height * 0.5);
+    path.lineTo(width * 0.75, height);
+    path.lineTo(width * 0.25, height);
+    path.lineTo(0, height * 0.5);
+    path.close();
+
+    canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _ParticipantConnectionsPainter oldDelegate) {
-    return true; // Always repaint for smooth physics animation
+  bool shouldRepaint(covariant HexagonBorderPainter oldDelegate) {
+    return oldDelegate.borderColor != borderColor ||
+        oldDelegate.borderWidth != borderWidth;
   }
 }
 
