@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import '../services/keycloak_service.dart';
 import 'login_screen.dart';
-import 'main_navigation_screen.dart';
+import 'media_menu_screen.dart';
 
 class VoiceCallScreen extends StatefulWidget {
   final bool startUnmuted;
@@ -643,7 +643,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const MainNavigationScreen(),
+        builder: (context) => const MediaMenuScreen(),
       ),
     );
   }
