@@ -57,21 +57,6 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
 
   // View mode state
   String _viewMode = 'row'; // 'row' or 'grid'
-  String? _selectedGenre; // null means 'All'
-
-  final List<String> _genres = [
-    'All',
-    'Action',
-    'Comedy',
-    'Drama',
-    'Horror',
-    'Sci-Fi',
-    'Romance',
-    'Thriller',
-    'Documentary',
-    'Animation',
-    'Fantasy',
-  ];
 
   @override
   void initState() {
@@ -393,58 +378,7 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
               ? _buildLoadingState()
               : _errorMessage != null
                   ? _buildErrorState()
-                  : Column(
-                      children: [
-                        if (!widget.startWithSearch) _buildGenreFilter(),
-                        Expanded(child: _buildContentBody()),
-                      ],
-                    ),
-    );
-  }
-
-  Widget _buildGenreFilter() {
-    return Container(
-      height: 60,
-      margin: const EdgeInsets.only(top: 100), // Account for transparent AppBar
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        itemCount: _genres.length,
-        itemBuilder: (context, index) {
-          final genre = _genres[index];
-          final isSelected = _selectedGenre == null && genre == 'All' ||
-              _selectedGenre == genre;
-
-          return Container(
-            margin: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              label: Text(genre),
-              selected: isSelected,
-              onSelected: (selected) {
-                setState(() {
-                  if (genre == 'All') {
-                    _selectedGenre = null;
-                  } else {
-                    _selectedGenre = selected ? genre : null;
-                  }
-                });
-              },
-              backgroundColor: Colors.white.withOpacity(0.1),
-              selectedColor: Colors.blueAccent,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : Colors.white.withOpacity(0.7),
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-              checkmarkColor: Colors.white,
-              side: BorderSide(
-                color: isSelected
-                    ? Colors.blueAccent
-                    : Colors.white.withOpacity(0.2),
-              ),
-            ),
-          );
-        },
-      ),
+                  : _buildContentBody(),
     );
   }
 
@@ -569,25 +503,10 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     );
   }
 
-  bool _itemMatchesGenre(dynamic item) {
-    if (_selectedGenre == null) return true;
-
-    final genres = item['Genres'] ?? item['genres'] ?? [];
-    if (genres is List) {
-      for (var genre in genres) {
-        final genreName = genre is String ? genre : genre['name'] ?? genre['Name'] ?? '';
-        if (genreName.toString().toLowerCase().contains(_selectedGenre!.toLowerCase())) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
   Widget _buildRowView() {
     return ListView(
       children: [
-        // No extra padding here since genre filter already provides it
+        const SizedBox(height: 100), // Padding for transparent AppBar
 
         // Featured section (if we have any content)
         if (_recentlyAdded.isNotEmpty)
@@ -760,51 +679,37 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     // Combine all content into a single list
     final allContent = <Map<String, dynamic>>[];
 
-    // Add all items with their category info, applying genre filter
+    // Add all items with their category info
     for (var item in _continueWatching) {
-      if (_itemMatchesGenre(item)) {
-        allContent.add({'item': item, 'isJellyfin': true, 'showProgress': true});
-      }
+      allContent.add({'item': item, 'isJellyfin': true, 'showProgress': true});
     }
     for (var item in _favorites) {
-      if (_itemMatchesGenre(item)) {
-        allContent.add({'item': item, 'isJellyfin': item.containsKey('Id')});
-      }
+      allContent.add({'item': item, 'isJellyfin': item.containsKey('Id')});
     }
     for (var item in _recentlyAdded) {
-      if (_itemMatchesGenre(item)) {
-        allContent.add({'item': item, 'isJellyfin': true});
-      }
+      allContent.add({'item': item, 'isJellyfin': true});
     }
     for (var item in _trendingMovies) {
-      if (_itemMatchesGenre(item)) {
-        allContent.add({'item': item, 'isJellyfin': false});
-      }
+      allContent.add({'item': item, 'isJellyfin': false});
     }
     for (var item in _trendingTV) {
-      if (_itemMatchesGenre(item)) {
-        allContent.add({'item': item, 'isJellyfin': false});
-      }
+      allContent.add({'item': item, 'isJellyfin': false});
     }
     for (var item in _popularMovies) {
-      if (_itemMatchesGenre(item)) {
-        allContent.add({'item': item, 'isJellyfin': false});
-      }
+      allContent.add({'item': item, 'isJellyfin': false});
     }
     for (var item in _movies) {
-      if (_itemMatchesGenre(item)) {
-        allContent.add({'item': item, 'isJellyfin': true});
-      }
+      allContent.add({'item': item, 'isJellyfin': true});
     }
     for (var item in _tvShows) {
-      if (_itemMatchesGenre(item)) {
-        allContent.add({'item': item, 'isJellyfin': true});
-      }
+      allContent.add({'item': item, 'isJellyfin': true});
     }
 
     return CustomScrollView(
       slivers: [
-        // No top padding needed since genre filter handles it
+        const SliverToBoxAdapter(
+          child: SizedBox(height: 100), // Padding for transparent AppBar
+        ),
         SliverPadding(
           padding: const EdgeInsets.all(16),
           sliver: SliverGrid(
