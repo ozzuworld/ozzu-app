@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/jellyseerr_service.dart';
+import '../services/favorites_service.dart';
 
 class ContentDetailsScreen extends StatefulWidget {
   final int tmdbId;
@@ -22,8 +23,10 @@ class ContentDetailsScreen extends StatefulWidget {
 
 class _ContentDetailsScreenState extends State<ContentDetailsScreen> {
   final JellyseerrService _jellyseerrService = JellyseerrService();
+  final FavoritesService _favoritesService = FavoritesService();
   Map<String, dynamic>? _details;
   bool _isLoading = true;
+  bool _isFavorite = false;
 
   @override
   void initState() {
@@ -34,6 +37,9 @@ class _ContentDetailsScreenState extends State<ContentDetailsScreen> {
   Future<void> _loadDetails() async {
     setState(() => _isLoading = true);
 
+    // Load favorites
+    await _favoritesService.loadFavorites();
+
     final details = widget.mediaType == 'movie'
         ? await _jellyseerrService.getMovieDetails(widget.tmdbId)
         : await _jellyseerrService.getTVDetails(widget.tmdbId);
@@ -41,8 +47,36 @@ class _ContentDetailsScreenState extends State<ContentDetailsScreen> {
     if (mounted) {
       setState(() {
         _details = details;
+        _isFavorite = _favoritesService.isFavorite(widget.tmdbId.toString());
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (_details == null) return;
+
+    final itemData = {
+      'id': widget.tmdbId,
+      'title': _details!['title'],
+      'name': _details!['name'],
+      'mediaType': widget.mediaType,
+      'posterPath': _details!['posterPath'],
+      'overview': _details!['overview'],
+      'voteAverage': _details!['voteAverage'],
+    };
+
+    final newState = await _favoritesService.toggleFavorite(itemData);
+    setState(() => _isFavorite = newState);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(newState ? 'Added to favorites' : 'Removed from favorites'),
+          backgroundColor: newState ? Colors.green : Colors.grey[800],
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -115,6 +149,22 @@ class _ContentDetailsScreenState extends State<ContentDetailsScreen> {
             ),
             onPressed: () => Navigator.pop(context),
           ),
+          actions: [
+            IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _isFavorite ? Icons.favorite : Icons.favorite_border,
+                  color: _isFavorite ? Colors.red : Colors.white,
+                ),
+              ),
+              onPressed: _toggleFavorite,
+            ),
+          ],
           flexibleSpace: FlexibleSpaceBar(
             background: Stack(
               fit: StackFit.expand,
