@@ -28,6 +28,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   bool _showTalkMenu = false;
   bool _showTalkSearchMenu = false;
   bool _showTalkPublicRoomsMenu = false;
+  bool _showTalkParticipantMap = false;
   final TextEditingController _talkSearchController = TextEditingController();
 
   Room? room;
@@ -148,6 +149,11 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       ..on<ParticipantConnectedEvent>((event) {
         debugPrint('👋 Participant joined: ${event.participant.identity}');
         _checkIfJuneParticipant(event.participant);
+        setState(() {}); // Trigger rebuild for participant map
+      })
+      ..on<ParticipantDisconnectedEvent>((event) {
+        debugPrint('👋 Participant left: ${event.participant.identity}');
+        setState(() {}); // Trigger rebuild for participant map
       })
       ..on<ActiveSpeakersChangedEvent>((event) {
         final juneIsSpeaking = event.speakers.any((participant) =>
@@ -391,15 +397,17 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: _showTalkSearchMenu
-                ? _buildTalkSearchMenuItems()
-                : _showTalkPublicRoomsMenu
-                    ? _buildTalkPublicRoomsMenuItems()
-                    : _showTalkMenu
-                        ? _buildTalkMenuItems()
-                        : _showMediaMenu
-                            ? _buildMediaMenuItems()
-                            : _buildMainMenuItems(),
+            children: _showTalkParticipantMap
+                ? _buildTalkParticipantMapMenuItems()
+                : _showTalkSearchMenu
+                    ? _buildTalkSearchMenuItems()
+                    : _showTalkPublicRoomsMenu
+                        ? _buildTalkPublicRoomsMenuItems()
+                        : _showTalkMenu
+                            ? _buildTalkMenuItems()
+                            : _showMediaMenu
+                                ? _buildMediaMenuItems()
+                                : _buildMainMenuItems(),
           ),
         ),
       ),
@@ -478,6 +486,18 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         statusColor: Colors.greenAccent,
         onTap: () {
           setState(() => _showTalkPublicRoomsMenu = true);
+        },
+      ),
+
+      Divider(color: Colors.white.withOpacity(0.1), height: 1),
+
+      // Participant Map
+      _buildGlassMenuItem(
+        icon: Icons.account_tree,
+        label: 'Participant Map',
+        statusColor: Colors.purpleAccent,
+        onTap: () {
+          setState(() => _showTalkParticipantMap = true);
         },
       ),
     ];
@@ -583,6 +603,65 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         ),
       ),
     ];
+  }
+
+  List<Widget> _buildTalkParticipantMapMenuItems() {
+    final participants = room?.remoteParticipants.values.toList() ?? [];
+
+    return [
+      // Back button
+      _buildGlassMenuItem(
+        icon: Icons.arrow_back,
+        label: 'Back',
+        statusColor: Colors.white.withOpacity(0.5),
+        onTap: () {
+          setState(() => _showTalkParticipantMap = false);
+        },
+      ),
+
+      Divider(color: Colors.white.withOpacity(0.1), height: 1),
+
+      // Participant Map Visualization
+      Container(
+        height: 400,
+        padding: const EdgeInsets.all(16),
+        child: _buildParticipantNetworkDiagram(participants),
+      ),
+    ];
+  }
+
+  Widget _buildParticipantNetworkDiagram(List<RemoteParticipant> participants) {
+    return AnimatedOpacity(
+      opacity: 1.0,
+      duration: const Duration(milliseconds: 500),
+      child: Stack(
+        children: [
+          // Background glow effect
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  colors: [
+                    Colors.purpleAccent.withOpacity(0.1),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 1.0],
+                ),
+              ),
+            ),
+          ),
+          // Main network diagram
+          CustomPaint(
+            painter: ParticipantNetworkPainter(
+              roomName: roomName,
+              participants: participants,
+              localParticipantName: participantName,
+            ),
+            child: Container(),
+          ),
+        ],
+      ),
+    );
   }
 
   // Join LiveKit room and navigate to TalkScreen
@@ -900,5 +979,247 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
     }
+  }
+}
+
+// Custom painter for the radial participant network diagram
+class ParticipantNetworkPainter extends CustomPainter {
+  final String roomName;
+  final List<RemoteParticipant> participants;
+  final String localParticipantName;
+
+  ParticipantNetworkPainter({
+    required this.roomName,
+    required this.participants,
+    required this.localParticipantName,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2 - 60;
+
+    // Paint for connecting lines (with glow effect)
+    final lineGlowPaint = Paint()
+      ..color = Colors.purpleAccent.withOpacity(0.3)
+      ..strokeWidth = 3.0
+      ..style = PaintingStyle.stroke
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+
+    final linePaint = Paint()
+      ..color = Colors.purpleAccent.withOpacity(0.6)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    // Paint for center room box
+    final centerBoxPaint = Paint()
+      ..color = Colors.blueAccent.withOpacity(0.3)
+      ..style = PaintingStyle.fill;
+
+    final centerBorderPaint = Paint()
+      ..color = Colors.blueAccent.withOpacity(0.6)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    // Paint for participant nodes
+    final participantNodePaint = Paint()
+      ..color = Colors.purpleAccent.withOpacity(0.4)
+      ..style = PaintingStyle.fill;
+
+    final participantBorderPaint = Paint()
+      ..color = Colors.purpleAccent.withOpacity(0.8)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    // Draw center room box with glow
+    const centerBoxSize = 80.0;
+    final centerRect = Rect.fromCenter(
+      center: center,
+      width: centerBoxSize,
+      height: centerBoxSize,
+    );
+    final centerRRect = RRect.fromRectAndRadius(
+      centerRect,
+      const Radius.circular(12),
+    );
+
+    // Draw glow behind center box
+    final centerGlowPaint = Paint()
+      ..color = Colors.blueAccent.withOpacity(0.4)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
+    final glowRect = Rect.fromCenter(
+      center: center,
+      width: centerBoxSize + 20,
+      height: centerBoxSize + 20,
+    );
+    final glowRRect = RRect.fromRectAndRadius(
+      glowRect,
+      const Radius.circular(18),
+    );
+    canvas.drawRRect(glowRRect, centerGlowPaint);
+
+    canvas.drawRRect(centerRRect, centerBoxPaint);
+    canvas.drawRRect(centerRRect, centerBorderPaint);
+
+    // Draw room name in center
+    final roomNamePainter = TextPainter(
+      text: TextSpan(
+        text: roomName.length > 10 ? '${roomName.substring(0, 10)}...' : roomName,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    roomNamePainter.layout();
+    roomNamePainter.paint(
+      canvas,
+      Offset(
+        center.dx - roomNamePainter.width / 2,
+        center.dy - roomNamePainter.height / 2,
+      ),
+    );
+
+    // Include local participant
+    final allParticipants = [
+      {'name': localParticipantName, 'isLocal': true},
+      ...participants.map((p) => {'name': p.identity, 'isLocal': false}),
+    ];
+
+    // Calculate positions and draw participants
+    final participantCount = allParticipants.length;
+    for (int i = 0; i < participantCount; i++) {
+      final angle = (2 * math.pi * i / participantCount) - math.pi / 2;
+      final participantX = center.dx + radius * math.cos(angle);
+      final participantY = center.dy + radius * math.sin(angle);
+      final participantPos = Offset(participantX, participantY);
+
+      // Draw connecting line with glow effect
+      canvas.drawLine(center, participantPos, lineGlowPaint);
+      canvas.drawLine(center, participantPos, linePaint);
+
+      // Draw participant node (square)
+      const nodeSize = 40.0;
+      final nodeRect = Rect.fromCenter(
+        center: participantPos,
+        width: nodeSize,
+        height: nodeSize,
+      );
+      final nodeRRect = RRect.fromRectAndRadius(
+        nodeRect,
+        const Radius.circular(8),
+      );
+
+      final isLocal = allParticipants[i]['isLocal'] as bool;
+      final nodePaint = Paint()
+        ..color = isLocal
+            ? Colors.greenAccent.withOpacity(0.4)
+            : Colors.purpleAccent.withOpacity(0.4)
+        ..style = PaintingStyle.fill;
+
+      final nodeBorderPaint = Paint()
+        ..color = isLocal
+            ? Colors.greenAccent.withOpacity(0.8)
+            : Colors.purpleAccent.withOpacity(0.8)
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke;
+
+      // Draw glow behind node
+      final nodeGlowPaint = Paint()
+        ..color = isLocal
+            ? Colors.greenAccent.withOpacity(0.3)
+            : Colors.purpleAccent.withOpacity(0.3)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+      final nodeGlowRect = Rect.fromCenter(
+        center: participantPos,
+        width: nodeSize + 12,
+        height: nodeSize + 12,
+      );
+      final nodeGlowRRect = RRect.fromRectAndRadius(
+        nodeGlowRect,
+        const Radius.circular(12),
+      );
+      canvas.drawRRect(nodeGlowRRect, nodeGlowPaint);
+
+      canvas.drawRRect(nodeRRect, nodePaint);
+      canvas.drawRRect(nodeRRect, nodeBorderPaint);
+
+      // Draw participant name
+      final participantName = allParticipants[i]['name'] as String;
+      final displayName = participantName.length > 8
+          ? '${participantName.substring(0, 8)}...'
+          : participantName;
+
+      final namePainter = TextPainter(
+        text: TextSpan(
+          text: displayName,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      namePainter.layout();
+      namePainter.paint(
+        canvas,
+        Offset(
+          participantX - namePainter.width / 2,
+          participantY - namePainter.height / 2,
+        ),
+      );
+
+      // Draw "YOU" indicator for local participant
+      if (isLocal) {
+        final youPainter = TextPainter(
+          text: const TextSpan(
+            text: 'YOU',
+            style: TextStyle(
+              color: Colors.greenAccent,
+              fontSize: 8,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        );
+        youPainter.layout();
+        youPainter.paint(
+          canvas,
+          Offset(
+            participantX - youPainter.width / 2,
+            participantY + nodeSize / 2 + 4,
+          ),
+        );
+      }
+    }
+
+    // Draw participant count
+    final countPainter = TextPainter(
+      text: TextSpan(
+        text: '${participantCount} participant${participantCount != 1 ? 's' : ''}',
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.6),
+          fontSize: 10,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    countPainter.layout();
+    countPainter.paint(
+      canvas,
+      Offset(
+        center.dx - countPainter.width / 2,
+        center.dy + centerBoxSize / 2 + 8,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(ParticipantNetworkPainter oldDelegate) {
+    return oldDelegate.participants.length != participants.length ||
+        oldDelegate.roomName != roomName;
   }
 }
