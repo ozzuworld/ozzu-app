@@ -93,10 +93,17 @@ class _SecurityScreenState extends State<SecurityScreen> with TickerProviderStat
       return;
     }
 
-    // No configuration needed - OIDC handles authentication automatically
-
     if (_connectionState == VPNConnectionState.connected) {
       await _vpnManager.disconnect();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Disconnected from VPN'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     } else {
       try {
         final success = await _vpnManager.connect();
@@ -104,15 +111,15 @@ class _SecurityScreenState extends State<SecurityScreen> with TickerProviderStat
         if (success && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Tailscale launched! Complete setup in the Tailscale app.'),
-              backgroundColor: Colors.blue,
-              duration: Duration(seconds: 4),
+              content: Text('Connected to Ozzu VPN'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
             ),
           );
         } else if (!success && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Failed to launch Tailscale. Please try again.'),
+              content: Text('Failed to connect. Please try again.'),
               backgroundColor: Colors.red,
               duration: Duration(seconds: 3),
             ),
@@ -120,48 +127,29 @@ class _SecurityScreenState extends State<SecurityScreen> with TickerProviderStat
         }
       } catch (e) {
         if (mounted) {
-          // Check if it's a Tailscale not installed error
-          if (e.toString().contains('Tailscale app required') ||
-              e.toString().contains('Tailscale app not installed')) {
-            _showTailscaleInstallDialog();
+          String errorMsg = 'Connection failed';
+
+          if (e.toString().contains('Not authenticated')) {
+            errorMsg = 'Please log in first';
+          } else if (e.toString().contains('registration failed') ||
+                     e.toString().contains('Device registration failed')) {
+            errorMsg = 'Failed to register device. Please contact support.';
+          } else if (e.toString().contains('500')) {
+            errorMsg = 'Server error. Backend endpoint may not be implemented yet.';
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error: ${e.toString()}'),
-                backgroundColor: Colors.redAccent,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+            errorMsg = 'Error: ${e.toString().replaceAll('Exception:', '').trim()}';
           }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMsg),
+              backgroundColor: Colors.redAccent,
+              duration: const Duration(seconds: 4),
+            ),
+          );
         }
       }
     }
-  }
-
-  void _showTailscaleInstallDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Tailscale Required'),
-        content: const Text(
-          'Tailscale app is required for VPN connection. '
-          'Would you like to install it from the app store?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _headscaleService.openTailscaleInstallPage();
-            },
-            child: const Text('Install'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
