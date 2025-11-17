@@ -23,7 +23,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
   bool _showMenu = false;
-  bool _mediaExpanded = false;
+  bool _showMediaMenu = false;
   Room? room;
   bool isConnected = false;
   bool isMuted = true;
