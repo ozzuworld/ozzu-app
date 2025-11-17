@@ -295,43 +295,6 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Double tap to skip areas
-          Row(
-            children: [
-              // Left side - double tap to rewind 10s
-              Expanded(
-                child: GestureDetector(
-                  onDoubleTap: () {
-                    if (_controller != null && _controller!.value.isInitialized) {
-                      final position = _controller!.value.position;
-                      _controller!.seekTo(position - const Duration(seconds: 10));
-                      _showSkipIndicator(true);
-                    }
-                  },
-                  onTap: _toggleControls,
-                  child: Container(color: Colors.transparent),
-                ),
-              ),
-              // Right side - double tap to forward 10s
-              Expanded(
-                child: GestureDetector(
-                  onDoubleTap: () {
-                    if (_controller != null && _controller!.value.isInitialized) {
-                      final position = _controller!.value.position;
-                      _controller!.seekTo(position + const Duration(seconds: 10));
-                      _showSkipIndicator(false);
-                    }
-                  },
-                  onTap: _toggleControls,
-                  child: Container(color: Colors.transparent),
-                ),
-              ),
-            ],
-          ),
-
-          Stack(
-            fit: StackFit.expand,
-            children: [
             // Video player
             if (_controller != null && _controller!.value.isInitialized)
               Center(
@@ -622,8 +585,43 @@ class _TVPlayerScreenState extends State<TVPlayerScreen> {
                   ),
                 ),
               ),
-            ],
-          ),
+
+            // Double tap to skip areas (on top to receive gestures)
+            if (!_showNextEpisodeCountdown)
+              Row(
+                children: [
+                  // Left side - double tap to rewind 10s
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onDoubleTap: () {
+                        if (_controller != null && _controller!.value.isInitialized) {
+                          final position = _controller!.value.position;
+                          _controller!.seekTo(position - const Duration(seconds: 10));
+                          _showSkipIndicator(true);
+                        }
+                      },
+                      onTap: _toggleControls,
+                      child: Container(color: Colors.transparent),
+                    ),
+                  ),
+                  // Right side - double tap to forward 10s
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onDoubleTap: () {
+                        if (_controller != null && _controller!.value.isInitialized) {
+                          final position = _controller!.value.position;
+                          _controller!.seekTo(position + const Duration(seconds: 10));
+                          _showSkipIndicator(false);
+                        }
+                      },
+                      onTap: _toggleControls,
+                      child: Container(color: Colors.transparent),
+                    ),
+                  ),
+                ],
+              ),
         ],
       ),
     );
