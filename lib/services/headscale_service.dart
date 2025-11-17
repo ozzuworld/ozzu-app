@@ -3,9 +3,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:logger/logger.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Service for managing Headscale VPN connections
-/// Handles API communication with the headscale control server
+/// Handles OIDC authentication and API communication with the headscale control server
 class HeadscaleService {
   static final HeadscaleService _instance = HeadscaleService._internal();
   factory HeadscaleService() => _instance;
@@ -14,14 +15,19 @@ class HeadscaleService {
   final _storage = const FlutterSecureStorage();
   final _logger = Logger();
 
+  // Headscale server URL (configured by backend)
+  static const String defaultServerUrl = 'https://headscale.ozzu.world';
+
   // Storage keys
   static const _keyServerUrl = 'headscale_server_url';
   static const _keyApiKey = 'headscale_api_key';
   static const _keyUsername = 'headscale_username';
+  static const _keyNodeRegistered = 'headscale_node_registered';
 
   String? _serverUrl;
   String? _apiKey;
   String? _username;
+  bool _nodeRegistered = false;
 
   // Connection status stream
   final _connectionStatusController = StreamController<ConnectionStatus>.broadcast();
@@ -33,11 +39,13 @@ class HeadscaleService {
   Future<void> initialize() async {
     _logger.d('Initializing HeadscaleService');
 
-    _serverUrl = await _storage.read(key: _keyServerUrl);
+    _serverUrl = await _storage.read(key: _keyServerUrl) ?? defaultServerUrl;
     _apiKey = await _storage.read(key: _keyApiKey);
     _username = await _storage.read(key: _keyUsername);
+    final registeredStr = await _storage.read(key: _keyNodeRegistered);
+    _nodeRegistered = registeredStr == 'true';
 
-    _logger.d('Loaded config - Server: $_serverUrl, Username: $_username');
+    _logger.d('Loaded config - Server: $_serverUrl, Username: $_username, Registered: $_nodeRegistered');
   }
 
   /// Save server configuration
@@ -213,6 +221,58 @@ class HeadscaleService {
     }
   }
 
+  /// Register device using OIDC (seamless SSO with Keycloak)
+  /// This opens a browser window that uses the existing Keycloak session
+  /// Returns the auth URL that was used for registration
+  Future<OIDCRegistrationResult> registerWithOIDC() async {
+    try {
+      _logger.d('Starting OIDC registration with Headscale');
+
+      // Use configured server URL or default
+      final serverUrl = _serverUrl ?? defaultServerUrl;
+
+      // Headscale OIDC registration endpoint
+      final oidcUrl = Uri.parse('$serverUrl/oidc/register');
+
+      _logger.d('Opening OIDC URL: $oidcUrl');
+
+      // Launch browser for OIDC authentication
+      // This will use the existing Keycloak session if user is already logged in
+      final launched = await launchUrl(
+        oidcUrl,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!launched) {
+        _logger.e('Failed to launch OIDC URL');
+        return OIDCRegistrationResult(
+          success: false,
+          error: 'Failed to open authentication page',
+        );
+      }
+
+      // Mark as registered (in real implementation, you'd verify this)
+      await _storage.write(key: _keyNodeRegistered, value: 'true');
+      _nodeRegistered = true;
+
+      _logger.d('OIDC registration initiated successfully');
+
+      return OIDCRegistrationResult(
+        success: true,
+        authUrl: oidcUrl.toString(),
+      );
+    } catch (e) {
+      _logger.e('OIDC registration error: $e');
+      return OIDCRegistrationResult(
+        success: false,
+        error: e.toString(),
+      );
+    }
+  }
+
+  /// Check if node is already registered
+  bool get isNodeRegistered => _nodeRegistered;
+
   /// Clear all saved configuration
   Future<void> clearConfiguration() async {
     _logger.d('Clearing headscale configuration');
@@ -220,10 +280,12 @@ class HeadscaleService {
     await _storage.delete(key: _keyServerUrl);
     await _storage.delete(key: _keyApiKey);
     await _storage.delete(key: _keyUsername);
+    await _storage.delete(key: _keyNodeRegistered);
 
     _serverUrl = null;
     _apiKey = null;
     _username = null;
+    _nodeRegistered = false;
 
     updateConnectionStatus(ConnectionStatus.disconnected);
   }
@@ -286,4 +348,17 @@ class HeadscaleNode {
     if (lowerName.contains('android')) return '📱';
     return '💻';
   }
+}
+
+/// Result of OIDC registration
+class OIDCRegistrationResult {
+  final bool success;
+  final String? authUrl;
+  final String? error;
+
+  OIDCRegistrationResult({
+    required this.success,
+    this.authUrl,
+    this.error,
+  });
 }

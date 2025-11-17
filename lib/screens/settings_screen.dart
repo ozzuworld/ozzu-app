@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/jellyfin_service.dart';
 import '../services/jellyseerr_service.dart';
+import '../widgets/vpn_toggle.dart';
 
 class SettingsScreen extends StatefulWidget {
   final bool showBackButton;
@@ -82,6 +83,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
+
+          // VPN Section
+          _buildSectionHeader('VPN & Security'),
+          const VPNToggle(),
 
           // Playback Settings
           _buildSectionHeader('Playback'),
