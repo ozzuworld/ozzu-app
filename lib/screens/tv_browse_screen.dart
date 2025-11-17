@@ -13,7 +13,14 @@ import 'content_details_screen.dart';
 import 'settings_screen.dart';
 
 class TVBrowseScreen extends StatefulWidget {
-  const TVBrowseScreen({super.key});
+  final bool startWithSearch;
+  final bool showBackButton;
+
+  const TVBrowseScreen({
+    super.key,
+    this.startWithSearch = false,
+    this.showBackButton = false,
+  });
 
   @override
   State<TVBrowseScreen> createState() => _TVBrowseScreenState();
@@ -43,9 +50,15 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
   List<dynamic> _searchResults = [];
   bool _isSearchLoading = false;
 
+  // View mode state
+  String _viewMode = 'row'; // 'row' or 'grid'
+
   @override
   void initState() {
     super.initState();
+    if (widget.startWithSearch) {
+      _isSearching = true;
+    }
     _initialize();
   }
 
@@ -214,19 +227,21 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
                   });
                 },
               )
-            : IconButton(
-                icon: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white.withOpacity(0.2)),
-                  ),
-                  child: const Icon(Icons.arrow_back, color: Colors.white),
-                ),
-                onPressed: () => Navigator.pop(context),
-              ),
+            : widget.showBackButton
+                ? IconButton(
+                    icon: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white.withOpacity(0.2)),
+                      ),
+                      child: const Icon(Icons.arrow_back, color: Colors.white),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  )
+                : null,
         title: _isSearching
             ? TextField(
                 autofocus: true,
@@ -251,14 +266,26 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
                 ),
               ),
         actions: [
-          if (!_isSearching)
+          if (!_isSearching && !widget.startWithSearch)
+            IconButton(
+              icon: Icon(
+                _viewMode == 'row' ? Icons.grid_view : Icons.view_carousel,
+                color: Colors.white,
+              ),
+              onPressed: () {
+                setState(() {
+                  _viewMode = _viewMode == 'row' ? 'grid' : 'row';
+                });
+              },
+            ),
+          if (!_isSearching && !widget.startWithSearch)
             IconButton(
               icon: const Icon(Icons.search, color: Colors.white),
               onPressed: () {
                 setState(() => _isSearching = true);
               },
             ),
-          if (!_isSearching)
+          if (!_isSearching && widget.showBackButton)
             IconButton(
               icon: const Icon(Icons.settings, color: Colors.white),
               onPressed: () {
@@ -283,18 +310,83 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
   }
 
   Widget _buildLoadingState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(color: Colors.blueAccent),
-          const SizedBox(height: 20),
-          Text(
-            'Loading content...',
-            style: TextStyle(color: Colors.white.withOpacity(0.7)),
+    return ListView(
+      children: [
+        const SizedBox(height: 100), // Padding for transparent AppBar
+
+        // Featured section skeleton
+        Shimmer.fromColors(
+          baseColor: Colors.grey[900]!,
+          highlightColor: Colors.grey[800]!,
+          child: Container(
+            height: 500,
+            margin: const EdgeInsets.symmetric(horizontal: 0),
+            decoration: BoxDecoration(
+              color: Colors.grey[900],
+              borderRadius: BorderRadius.circular(0),
+            ),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 20),
+
+        // Content rows skeleton
+        ...List.generate(5, (rowIndex) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Section title skeleton
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Shimmer.fromColors(
+                  baseColor: Colors.grey[900]!,
+                  highlightColor: Colors.grey[800]!,
+                  child: Container(
+                    width: 150,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[900],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ),
+              // Content cards skeleton
+              SizedBox(
+                height: 180,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: 8,
+                  itemBuilder: (context, index) {
+                    return Container(
+                      width: 120,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Shimmer.fromColors(
+                          baseColor: Colors.grey[900]!,
+                          highlightColor: Colors.grey[800]!,
+                          child: Container(
+                            color: Colors.grey[900],
+                            child: Center(
+                              child: Icon(
+                                Icons.movie_outlined,
+                                color: Colors.white.withOpacity(0.05),
+                                size: 40,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          );
+        }),
+      ],
     );
   }
 
@@ -334,96 +426,164 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
     return RefreshIndicator(
       onRefresh: _initialize,
       color: Colors.blueAccent,
-      child: ListView(
-        children: [
-          const SizedBox(height: 100), // Padding for transparent AppBar
+      child: _viewMode == 'grid' ? _buildGridView() : _buildRowView(),
+    );
+  }
 
-          // Featured section (if we have any content)
-          if (_recentlyAdded.isNotEmpty)
-            _buildFeaturedSection(_recentlyAdded.first),
+  Widget _buildRowView() {
+    return ListView(
+      children: [
+        const SizedBox(height: 100), // Padding for transparent AppBar
 
-          const SizedBox(height: 20),
+        // Featured section (if we have any content)
+        if (_recentlyAdded.isNotEmpty)
+          _buildFeaturedSection(_recentlyAdded.first),
 
-          // Continue Watching category (highest priority)
-          if (_continueWatching.isNotEmpty) ...[
-            _buildContentRow(
-              'Continue Watching',
-              _continueWatching,
-              isJellyfin: true,
-              showProgress: true,
-            ),
-            const SizedBox(height: 20),
-          ],
+        const SizedBox(height: 20),
 
-          // My Favorites category
-          if (_favorites.isNotEmpty) ...[
-            _buildContentRow(
-              'My Favorites',
-              _favorites,
-              isJellyfin: _favorites.first.containsKey('Id'),
-            ),
-            const SizedBox(height: 20),
-          ],
-
-          // Downloaded content category
-          if (_downloads.isNotEmpty) ...[
-            _buildDownloadsRow(),
-            const SizedBox(height: 20),
-          ],
-
-          // Recently Added category
+        // Continue Watching category (highest priority)
+        if (_continueWatching.isNotEmpty) ...[
           _buildContentRow(
-            'Recently Added',
-            _recentlyAdded,
+            'Continue Watching',
+            _continueWatching,
             isJellyfin: true,
+            showProgress: true,
           ),
           const SizedBox(height: 20),
-
-          // Trending Movies category (from Jellyseerr)
-          if (!kIsWeb)
-            _buildContentRow(
-              'Trending Movies',
-              _trendingMovies,
-              isJellyfin: false,
-            ),
-          if (!kIsWeb) const SizedBox(height: 20),
-
-          // Trending TV category (from Jellyseerr)
-          if (!kIsWeb)
-            _buildContentRow(
-              'Trending TV Shows',
-              _trendingTV,
-              isJellyfin: false,
-            ),
-          if (!kIsWeb) const SizedBox(height: 20),
-
-          // Popular Movies category (from Jellyseerr)
-          if (!kIsWeb)
-            _buildContentRow(
-              'Popular Movies',
-              _popularMovies,
-              isJellyfin: false,
-            ),
-          if (!kIsWeb) const SizedBox(height: 20),
-
-          // Movies category (from Jellyfin)
-          _buildContentRow(
-            'Movies',
-            _movies,
-            isJellyfin: true,
-          ),
-          const SizedBox(height: 20),
-
-          // TV Shows category (from Jellyfin)
-          _buildContentRow(
-            'TV Shows',
-            _tvShows,
-            isJellyfin: true,
-          ),
-
-          const SizedBox(height: 40),
         ],
-      ),
+
+        // My Favorites category
+        if (_favorites.isNotEmpty) ...[
+          _buildContentRow(
+            'My Favorites',
+            _favorites,
+            isJellyfin: _favorites.first.containsKey('Id'),
+          ),
+          const SizedBox(height: 20),
+        ],
+
+        // Downloaded content category
+        if (_downloads.isNotEmpty) ...[
+          _buildDownloadsRow(),
+          const SizedBox(height: 20),
+        ],
+
+        // Recently Added category
+        _buildContentRow(
+          'Recently Added',
+          _recentlyAdded,
+          isJellyfin: true,
+        ),
+        const SizedBox(height: 20),
+
+        // Trending Movies category (from Jellyseerr)
+        if (!kIsWeb)
+          _buildContentRow(
+            'Trending Movies',
+            _trendingMovies,
+            isJellyfin: false,
+          ),
+        if (!kIsWeb) const SizedBox(height: 20),
+
+        // Trending TV category (from Jellyseerr)
+        if (!kIsWeb)
+          _buildContentRow(
+            'Trending TV Shows',
+            _trendingTV,
+            isJellyfin: false,
+          ),
+        if (!kIsWeb) const SizedBox(height: 20),
+
+        // Popular Movies category (from Jellyseerr)
+        if (!kIsWeb)
+          _buildContentRow(
+            'Popular Movies',
+            _popularMovies,
+            isJellyfin: false,
+          ),
+        if (!kIsWeb) const SizedBox(height: 20),
+
+        // Movies category (from Jellyfin)
+        _buildContentRow(
+          'Movies',
+          _movies,
+          isJellyfin: true,
+        ),
+        const SizedBox(height: 20),
+
+        // TV Shows category (from Jellyfin)
+        _buildContentRow(
+          'TV Shows',
+          _tvShows,
+          isJellyfin: true,
+        ),
+
+        const SizedBox(height: 40),
+      ],
+    );
+  }
+
+  Widget _buildGridView() {
+    // Combine all content into a single list
+    final allContent = <Map<String, dynamic>>[];
+
+    // Add all items with their category info
+    for (var item in _continueWatching) {
+      allContent.add({'item': item, 'isJellyfin': true, 'showProgress': true});
+    }
+    for (var item in _favorites) {
+      allContent.add({'item': item, 'isJellyfin': item.containsKey('Id')});
+    }
+    for (var item in _recentlyAdded) {
+      allContent.add({'item': item, 'isJellyfin': true});
+    }
+    for (var item in _trendingMovies) {
+      allContent.add({'item': item, 'isJellyfin': false});
+    }
+    for (var item in _trendingTV) {
+      allContent.add({'item': item, 'isJellyfin': false});
+    }
+    for (var item in _popularMovies) {
+      allContent.add({'item': item, 'isJellyfin': false});
+    }
+    for (var item in _movies) {
+      allContent.add({'item': item, 'isJellyfin': true});
+    }
+    for (var item in _tvShows) {
+      allContent.add({'item': item, 'isJellyfin': true});
+    }
+
+    return CustomScrollView(
+      slivers: [
+        const SliverToBoxAdapter(
+          child: SizedBox(height: 100), // Padding for transparent AppBar
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.all(16),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.67,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final contentData = allContent[index];
+                final item = contentData['item'];
+                final isJellyfin = contentData['isJellyfin'] as bool;
+                final showProgress = contentData['showProgress'] as bool? ?? false;
+
+                return _buildContentCard(item, isJellyfin, showProgress: showProgress);
+              },
+              childCount: allContent.length,
+            ),
+          ),
+        ),
+        const SliverToBoxAdapter(
+          child: SizedBox(height: 40), // Bottom padding
+        ),
+      ],
     );
   }
 
@@ -690,13 +850,38 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
   }
 
   Widget _buildEmptyRow() {
-    return ListView.builder(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: 5, // Show 5 placeholder cards
-      itemBuilder: (context, index) {
-        return _buildPlaceholderCard();
-      },
+    return Container(
+      height: 180,
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          style: BorderStyle.solid,
+          width: 1,
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.inbox_outlined,
+              size: 48,
+              color: Colors.white.withOpacity(0.3),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No content available',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

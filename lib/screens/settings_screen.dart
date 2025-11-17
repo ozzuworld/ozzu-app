@@ -4,7 +4,9 @@ import '../services/jellyfin_service.dart';
 import '../services/jellyseerr_service.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final bool showBackButton;
+
+  const SettingsScreen({super.key, this.showBackButton = true});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -34,10 +36,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: widget.showBackButton,
+        leading: widget.showBackButton
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
       ),
       body: ListView(
         children: [
