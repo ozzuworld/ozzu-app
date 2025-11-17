@@ -271,15 +271,21 @@ class HeadscaleService {
       ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = json.decode(response.body);
         _logger.d('Device registered successfully');
+        _logger.d('Response body: ${response.body}');
+
+        final data = json.decode(response.body);
+        _logger.d('Parsed JSON data: $data');
 
         // Mark as registered
         await _storage.write(key: _keyNodeRegistered, value: 'true');
         _nodeRegistered = true;
 
         // Parse and return WireGuard configuration
-        return WireGuardConfig.fromJson(data);
+        final config = WireGuardConfig.fromJson(data);
+        _logger.d('WireGuard config created - IP: ${config.address}, Server: ${config.serverEndpoint}');
+
+        return config;
       } else {
         _logger.e('Device registration failed: ${response.statusCode} - ${response.body}');
         throw Exception('Device registration failed: ${response.statusCode}');
