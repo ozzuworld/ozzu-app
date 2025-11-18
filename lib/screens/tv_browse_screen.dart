@@ -9,6 +9,7 @@ import '../services/jellyfin_service.dart';
 import '../services/jellyseerr_service.dart';
 import '../services/favorites_service.dart';
 import '../services/downloads_service.dart';
+import '../widgets/tv_focusable.dart';
 import 'tv_player_screen.dart';
 import 'tv_show_details_screen.dart';
 import 'content_details_screen.dart';
@@ -1096,94 +1097,96 @@ class _TVBrowseScreenState extends State<TVBrowseScreen> {
         ? 'content_${item['Id']}'
         : 'content_jellyseerr_${item['id']}';
 
-    return GestureDetector(
-      onTap: () => isJellyfin ? _playItem(item) : _showDetails(item, isJellyfin),
-      child: Hero(
-        tag: heroTag,
-        child: Container(
-          width: 120,
-          margin: const EdgeInsets.symmetric(horizontal: 4),
+    return Container(
+      width: 120,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      child: TVFocusableCard(
+        onTap: () => isJellyfin ? _playItem(item) : _showDetails(item, isJellyfin),
+        width: 120,
+        height: 180,
+        child: Hero(
+          tag: heroTag,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Stack(
-            fit: StackFit.expand,
-            children: [
-              CachedNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Shimmer.fromColors(
-                  baseColor: Colors.grey[900]!,
-                  highlightColor: Colors.grey[800]!,
-                  child: Container(color: Colors.grey[900]),
+              fit: StackFit.expand,
+              children: [
+                CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Shimmer.fromColors(
+                    baseColor: Colors.grey[900]!,
+                    highlightColor: Colors.grey[800]!,
+                    child: Container(color: Colors.grey[900]),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.grey[900],
+                    child: const Icon(Icons.movie, color: Colors.white24),
+                  ),
                 ),
-                errorWidget: (context, url, error) => Container(
-                  color: Colors.grey[900],
-                  child: const Icon(Icons.movie, color: Colors.white24),
-                ),
-              ),
 
-              // Progress bar overlay
-              if (showProgress && progressPercent != null && progressPercent > 0)
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.8),
-                          Colors.transparent,
+                // Progress bar overlay
+                if (showProgress && progressPercent != null && progressPercent > 0)
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.8),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                      padding: const EdgeInsets.all(6),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Time remaining text
+                          if (timeRemaining != null)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                timeRemaining,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          // Progress bar
+                          Container(
+                            height: 3,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                            child: FractionallySizedBox(
+                              alignment: Alignment.centerLeft,
+                              widthFactor: progressPercent,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.blueAccent,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    padding: const EdgeInsets.all(6),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Time remaining text
-                        if (timeRemaining != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Text(
-                              timeRemaining,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        // Progress bar
-                        Container(
-                          height: 3,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                          child: FractionallySizedBox(
-                            alignment: Alignment.centerLeft,
-                            widthFactor: progressPercent,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.blueAccent,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-        ),
     );
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../services/jellyfin_service.dart';
+import '../widgets/tv_focusable.dart';
 import 'tv_player_screen.dart';
 
 class TVShowDetailsScreen extends StatefulWidget {
@@ -115,33 +116,37 @@ class _TVShowDetailsScreenState extends State<TVShowDetailsScreen> {
                         final seasonName = season['Name'] ?? 'Season ${season['IndexNumber']}';
                         final isSelected = seasonId == _selectedSeasonId;
 
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedSeasonId = seasonId;
-                            });
-                            _loadEpisodes(seasonId);
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 12),
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? Colors.white.withOpacity(0.2)
-                                  : Colors.white.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
+                        return Container(
+                          margin: const EdgeInsets.only(right: 12),
+                          child: TVFocusable(
+                            autofocus: index == 0 && isSelected,
+                            onTap: () {
+                              setState(() {
+                                _selectedSeasonId = seasonId;
+                              });
+                              _loadEpisodes(seasonId);
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              decoration: BoxDecoration(
                                 color: isSelected
-                                    ? Colors.white
-                                    : Colors.white.withOpacity(0.2),
+                                    ? Colors.white.withOpacity(0.2)
+                                    : Colors.white.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.2),
+                                ),
                               ),
-                            ),
-                            child: Center(
-                              child: Text(
-                                seasonName,
-                                style: TextStyle(
-                                  color: isSelected ? Colors.white : Colors.white.withOpacity(0.6),
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              child: Center(
+                                child: Text(
+                                  seasonName,
+                                  style: TextStyle(
+                                    color: isSelected ? Colors.white : Colors.white.withOpacity(0.6),
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  ),
                                 ),
                               ),
                             ),
@@ -195,16 +200,19 @@ class _TVShowDetailsScreenState extends State<TVShowDetailsScreen> {
         final imageId = episode['Id'];
         final hasImage = episode['ImageTags']?['Primary'] != null;
 
-        return GestureDetector(
-          onTap: () => _playEpisode(episode),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withOpacity(0.1)),
-            ),
-            child: Row(
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          child: TVFocusable(
+            autofocus: index == 0,
+            onTap: () => _playEpisode(episode),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
+              ),
+              child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Episode thumbnail
@@ -282,6 +290,7 @@ class _TVShowDetailsScreenState extends State<TVShowDetailsScreen> {
                 ),
               ],
             ),
+          ),
           ),
         );
       },
