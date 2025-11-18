@@ -3,6 +3,7 @@ import 'package:lottie/lottie.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/keycloak_service.dart';
 import '../main.dart';
+import '../widgets/tv_focusable.dart';
 
 class WelcomeScreen extends StatefulWidget {
   final VoidCallback? onLoggedIn;
@@ -100,15 +101,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
               )
             else
-              GestureDetector(
+              TVFocusableButton(
+                autofocus: true, // Auto-focus for TV remote navigation
                 onTap: _isLoggingIn ? null : _handleLogin,
-                child: SizedBox(
-                  width: 150,
-                  height: 150,
-                  child: Lottie.asset(
-                    'assets/lottie/lock-button.json',
-                    fit: BoxFit.contain,
-                  ),
+                size: 150,
+                isCircular: true,
+                child: Lottie.asset(
+                  'assets/lottie/lock-button.json',
+                  fit: BoxFit.contain,
                 ),
               ),
           ],
