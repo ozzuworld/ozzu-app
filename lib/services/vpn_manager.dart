@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:logger/logger.dart';
 import 'package:wireguard_flutter/wireguard_flutter.dart';
 import 'headscale_service.dart';
@@ -25,10 +26,9 @@ class VPNManager {
   VPNStats? _currentStats;
   VPNStats? get currentStats => _currentStats;
 
-  Timer? _statsUpdateTimer;
+  StreamSubscription<dynamic>? _stageSubscription;
   DateTime? _connectionStartTime;
 
-  String? _currentTunnelName;
   String? _assignedIpAddress;
 
   String? get assignedIpAddress => _assignedIpAddress;
@@ -50,6 +50,11 @@ class VPNManager {
       await _wireguard.initialize(interfaceName: 'ozzu-vpn');
       _logger.d('WireGuard initialized');
 
+      // Listen to VPN stage changes
+      _stageSubscription = _wireguard.vpnStageSnapshot.listen((stage) {
+        _handleStageChange(stage);
+      });
+
       // Check current VPN status
       await _checkCurrentStatus();
     } catch (e) {
@@ -61,17 +66,33 @@ class VPNManager {
   Future<void> _checkCurrentStatus() async {
     try {
       _logger.d('Checking current VPN status');
-
-      // Check if tunnel exists and is active
-      final tunnelName = _currentTunnelName ?? 'ozzu-vpn';
-      final stats = await _wireguard.tunnelGetStats(tunnelName: tunnelName);
-
-      if (stats != null) {
-        _updateState(VPNConnectionState.connected);
-        _startStatsMonitoring();
-      }
+      final stage = await _wireguard.stage();
+      _handleStageChange(stage);
     } catch (e) {
-      _logger.d('No active tunnel found');
+      _logger.d('Error checking VPN status: $e');
+    }
+  }
+
+  /// Handle WireGuard stage changes
+  void _handleStageChange(dynamic stage) {
+    _logger.d('WireGuard stage changed: $stage');
+
+    // Map WireGuard stages to our VPN states
+    if (stage.toString().toLowerCase().contains('connected')) {
+      _updateState(VPNConnectionState.connected);
+      _headscaleService.updateConnectionStatus(ConnectionStatus.connected);
+    } else if (stage.toString().toLowerCase().contains('connecting') ||
+        stage.toString().toLowerCase().contains('preparing') ||
+        stage.toString().toLowerCase().contains('authenticating')) {
+      _updateState(VPNConnectionState.connecting);
+      _headscaleService.updateConnectionStatus(ConnectionStatus.connecting);
+    } else if (stage.toString().toLowerCase().contains('disconnecting') ||
+        stage.toString().toLowerCase().contains('exiting')) {
+      _updateState(VPNConnectionState.disconnecting);
+    } else if (stage.toString().toLowerCase().contains('disconnected') ||
+        stage.toString().toLowerCase().contains('noconnection')) {
+      _updateState(VPNConnectionState.disconnected);
+      _headscaleService.updateConnectionStatus(ConnectionStatus.disconnected);
     }
   }
 
@@ -127,21 +148,32 @@ class VPNManager {
       final wgConfig = _buildWireGuardConfig(config);
       _logger.d('Built WireGuard configuration');
 
-      // Create and activate tunnel
-      final tunnelName = 'ozzu-vpn';
-      _currentTunnelName = tunnelName;
+      // Store assigned IP
       _assignedIpAddress = config.address;
 
-      _logger.d('Creating WireGuard tunnel: $tunnelName');
-      await _wireguard.activate(wgConfig, tunnelName: tunnelName);
+      // Get server address from endpoint (remove port)
+      final serverAddress = config.serverEndpoint.split(':')[0];
+
+      // Get provider bundle identifier (application ID)
+      final providerBundleIdentifier = Platform.isAndroid
+          ? 'com.example.livekitvoiceapp'
+          : 'com.example.livekitVoiceApp';
+
+      _logger.d('Starting VPN with WireGuard');
+      _logger.d('  Server: $serverAddress');
+      _logger.d('  Provider: $providerBundleIdentifier');
+
+      // Start VPN connection
+      await _wireguard.startVpn(
+        serverAddress: serverAddress,
+        wgQuickConfig: wgConfig,
+        providerBundleIdentifier: providerBundleIdentifier,
+      );
 
       _connectionStartTime = DateTime.now();
-      _logger.d('WireGuard VPN connected successfully');
+      _logger.d('WireGuard VPN connection initiated successfully');
 
-      _updateState(VPNConnectionState.connected);
-      _headscaleService.updateConnectionStatus(ConnectionStatus.connected);
-      _startStatsMonitoring();
-
+      // The actual connection state will be updated via the stream listener
       return true;
     } catch (e) {
       _logger.e('Failed to connect VPN: $e');
@@ -177,18 +209,14 @@ PersistentKeepalive = ${config.persistentKeepalive}
       _logger.d('Disconnecting VPN');
       _updateState(VPNConnectionState.disconnecting);
 
-      // Deactivate WireGuard tunnel
-      if (_currentTunnelName != null) {
-        await _wireguard.deactivate(tunnelName: _currentTunnelName!);
-        _logger.d('WireGuard tunnel deactivated');
-      }
+      // Stop VPN connection
+      await _wireguard.stopVpn();
+      _logger.d('WireGuard VPN stopped');
 
       _connectionStartTime = null;
       _assignedIpAddress = null;
-      _currentTunnelName = null;
       _currentStats = null;
 
-      _stopStatsMonitoring();
       _updateState(VPNConnectionState.disconnected);
       _headscaleService.updateConnectionStatus(ConnectionStatus.disconnected);
 
@@ -198,46 +226,6 @@ PersistentKeepalive = ${config.persistentKeepalive}
       _logger.e('Failed to disconnect VPN: $e');
       _updateState(VPNConnectionState.error);
       return false;
-    }
-  }
-
-  /// Start monitoring VPN statistics
-  void _startStatsMonitoring() {
-    _stopStatsMonitoring();
-
-    _statsUpdateTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
-      await _updateStats();
-    });
-
-    _logger.d('Started statistics monitoring');
-  }
-
-  /// Stop monitoring VPN statistics
-  void _stopStatsMonitoring() {
-    _statsUpdateTimer?.cancel();
-    _statsUpdateTimer = null;
-    _logger.d('Stopped statistics monitoring');
-  }
-
-  /// Update VPN statistics
-  Future<void> _updateStats() async {
-    try {
-      if (_currentTunnelName == null) return;
-
-      final stats = await _wireguard.tunnelGetStats(tunnelName: _currentTunnelName!);
-
-      if (stats != null) {
-        // Parse WireGuard stats
-        // The stats format depends on wireguard_flutter implementation
-        // This is a placeholder - adjust based on actual API
-        _currentStats = VPNStats(
-          bytesReceived: stats.totalRx ?? 0,
-          bytesSent: stats.totalTx ?? 0,
-          lastHandshake: stats.lastHandshakeTime,
-        );
-      }
-    } catch (e) {
-      _logger.e('Failed to update stats: $e');
     }
   }
 
@@ -252,7 +240,7 @@ PersistentKeepalive = ${config.persistentKeepalive}
 
   /// Dispose resources
   void dispose() {
-    _stopStatsMonitoring();
+    _stageSubscription?.cancel();
     _connectionStateController.close();
   }
 }
