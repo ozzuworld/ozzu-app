@@ -61,12 +61,12 @@ Think of it like this:
 ### Mobile App Components
 
 #### 1. WireGuard Integration
-**Package:** `wireguard_flutter: ^0.2.2`
+**Package:** `wireguard_flutter: ^0.1.3`
 **Location:** `pubspec.yaml`
 
 ```dart
 dependencies:
-  wireguard_flutter: ^0.2.2
+  wireguard_flutter: ^0.1.3
 ```
 
 #### 2. VPN Manager
