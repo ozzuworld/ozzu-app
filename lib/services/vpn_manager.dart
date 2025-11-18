@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:logger/logger.dart';
+import 'package:wireguard_flutter/wireguard_flutter.dart';
 import 'headscale_service.dart';
 import 'keycloak_service.dart';
-import 'tailscale_vpn_service.dart';
 
-/// Manager for Tailscale VPN connections with Headscale
+/// Manager for WireGuard VPN connections with Headscale
 /// Handles tunnel setup, connection state, and statistics
 class VPNManager {
   static final VPNManager _instance = VPNManager._internal();
@@ -13,7 +13,7 @@ class VPNManager {
 
   final _logger = Logger();
   final _headscaleService = HeadscaleService();
-  final _tailscaleService = TailscaleVpnService();
+  final _wireguard = WireGuardFlutter.instance;
 
   // Connection state
   final _connectionStateController = StreamController<VPNConnectionState>.broadcast();
@@ -46,10 +46,9 @@ class VPNManager {
       await _headscaleService.initialize();
       _logger.d('Headscale service initialized');
 
-      // Listen to Tailscale connection state
-      _tailscaleService.connectionStateStream.listen((state) {
-        _handleTailscaleStateChange(state);
-      });
+      // Initialize WireGuard
+      await _wireguard.initialize(interfaceName: 'ozzu-vpn');
+      _logger.d('WireGuard initialized');
 
       // Check current VPN status
       await _checkCurrentStatus();
@@ -62,47 +61,22 @@ class VPNManager {
   Future<void> _checkCurrentStatus() async {
     try {
       _logger.d('Checking current VPN status');
-      final status = await _tailscaleService.getStatus();
 
-      if (status != null && status['connected'] == true) {
-        _assignedIpAddress = status['ipAddress'];
+      // Check if tunnel exists and is active
+      final tunnelName = _currentTunnelName ?? 'ozzu-vpn';
+      final stats = await _wireguard.tunnelGetStats(tunnelName: tunnelName);
+
+      if (stats != null) {
         _updateState(VPNConnectionState.connected);
+        _startStatsMonitoring();
       }
     } catch (e) {
-      _logger.e('Error checking VPN status: $e');
+      _logger.d('No active tunnel found');
     }
   }
 
-  /// Handle Tailscale state changes
-  void _handleTailscaleStateChange(TailscaleConnectionState state) {
-    switch (state) {
-      case TailscaleConnectionState.connected:
-        _updateState(VPNConnectionState.connected);
-        _headscaleService.updateConnectionStatus(ConnectionStatus.connected);
-        _startStatsMonitoring();
-        break;
-      case TailscaleConnectionState.connecting:
-        _updateState(VPNConnectionState.connecting);
-        _headscaleService.updateConnectionStatus(ConnectionStatus.connecting);
-        break;
-      case TailscaleConnectionState.disconnected:
-        _updateState(VPNConnectionState.disconnected);
-        _headscaleService.updateConnectionStatus(ConnectionStatus.disconnected);
-        _stopStatsMonitoring();
-        break;
-      case TailscaleConnectionState.disconnecting:
-        _updateState(VPNConnectionState.disconnecting);
-        _headscaleService.updateConnectionStatus(ConnectionStatus.disconnected);
-        break;
-      case TailscaleConnectionState.error:
-        _updateState(VPNConnectionState.error);
-        _headscaleService.updateConnectionStatus(ConnectionStatus.error);
-        break;
-    }
-  }
-
-  /// Connect to VPN using Tailscale with Headscale
-  /// Seamlessly authenticates using Keycloak and connects with pre-auth key
+  /// Connect to VPN using WireGuard with Headscale
+  /// Seamlessly authenticates using Keycloak and connects
   Future<bool> connect() async {
     if (_currentState == VPNConnectionState.connected ||
         _currentState == VPNConnectionState.connecting) {
@@ -124,39 +98,72 @@ class VPNManager {
         throw Exception('Not authenticated. Please log in first.');
       }
 
-      _logger.d('Got access token, getting pre-auth key from Headscale');
+      _logger.d('Got access token, registering device with Headscale');
 
-      // Get pre-auth key from backend
-      final response = await _headscaleService.getPreAuthKey(accessToken);
+      // Register device and get WireGuard configuration
+      final config = await _headscaleService.registerDevice(accessToken);
 
-      if (response == null || response['pre_auth_key'] == null) {
-        throw Exception('Failed to get pre-auth key from Headscale');
+      if (config == null) {
+        throw Exception('Failed to get WireGuard configuration from Headscale');
       }
 
-      final preAuthKey = response['pre_auth_key'] as String;
-      final loginServer = response['login_server'] as String? ?? 'https://headscale.ozzu.world';
+      _logger.d('Got WireGuard config:');
+      _logger.d('  Address: ${config.address}');
+      _logger.d('  Server endpoint: ${config.serverEndpoint}');
+      _logger.d('  Allowed IPs: ${config.allowedIPs}');
 
-      _logger.d('Got pre-auth key, connecting to Tailscale');
-      _logger.d('Login server: $loginServer');
-
-      // Connect using Tailscale with the pre-auth key
-      final success = await _tailscaleService.connect(loginServer, preAuthKey);
-
-      if (success) {
-        _connectionStartTime = DateTime.now();
-        _logger.d('Tailscale VPN connection initiated successfully');
-
-        // The actual connection state will be updated via the stream listener
-        return true;
-      } else {
-        throw Exception('Failed to initiate Tailscale connection');
+      // Validate server public key
+      if (config.serverPublicKey.isEmpty ||
+          config.serverPublicKey == 'PLACEHOLDER_SERVER_KEY' ||
+          config.serverPublicKey.contains('PLACEHOLDER')) {
+        throw Exception(
+          'Invalid server public key received from backend. '
+          'Backend must provide the actual Headscale WireGuard public key. '
+          'Current value: ${config.serverPublicKey}'
+        );
       }
+
+      // Build WireGuard configuration
+      final wgConfig = _buildWireGuardConfig(config);
+      _logger.d('Built WireGuard configuration');
+
+      // Create and activate tunnel
+      final tunnelName = 'ozzu-vpn';
+      _currentTunnelName = tunnelName;
+      _assignedIpAddress = config.address;
+
+      _logger.d('Creating WireGuard tunnel: $tunnelName');
+      await _wireguard.activate(wgConfig, tunnelName: tunnelName);
+
+      _connectionStartTime = DateTime.now();
+      _logger.d('WireGuard VPN connected successfully');
+
+      _updateState(VPNConnectionState.connected);
+      _headscaleService.updateConnectionStatus(ConnectionStatus.connected);
+      _startStatsMonitoring();
+
+      return true;
     } catch (e) {
       _logger.e('Failed to connect VPN: $e');
       _updateState(VPNConnectionState.error);
       _headscaleService.updateConnectionStatus(ConnectionStatus.error);
       rethrow; // Re-throw so UI can handle specific errors
     }
+  }
+
+  /// Build WireGuard configuration from Headscale response
+  String _buildWireGuardConfig(WireGuardConfig config) {
+    return '''[Interface]
+PrivateKey = ${config.privateKey}
+Address = ${config.address}
+DNS = ${config.dns}
+
+[Peer]
+PublicKey = ${config.serverPublicKey}
+Endpoint = ${config.serverEndpoint}
+AllowedIPs = ${config.allowedIPs}
+PersistentKeepalive = ${config.persistentKeepalive}
+''';
   }
 
   /// Disconnect from VPN
@@ -168,69 +175,29 @@ class VPNManager {
 
     try {
       _logger.d('Disconnecting VPN');
+      _updateState(VPNConnectionState.disconnecting);
 
-      // Disconnect Tailscale
-      final success = await _tailscaleService.disconnect();
-
-      if (success) {
-        _logger.d('VPN disconnected successfully');
-
-        _connectionStartTime = null;
-        _assignedIpAddress = null;
-        _currentTunnelName = null;
-        _currentStats = null;
-
-        _stopStatsMonitoring();
-        _updateState(VPNConnectionState.disconnected);
-        _headscaleService.updateConnectionStatus(ConnectionStatus.disconnected);
-
-        return true;
-      } else {
-        _logger.e('Failed to disconnect VPN');
-        return false;
+      // Deactivate WireGuard tunnel
+      if (_currentTunnelName != null) {
+        await _wireguard.deactivate(tunnelName: _currentTunnelName!);
+        _logger.d('WireGuard tunnel deactivated');
       }
+
+      _connectionStartTime = null;
+      _assignedIpAddress = null;
+      _currentTunnelName = null;
+      _currentStats = null;
+
+      _stopStatsMonitoring();
+      _updateState(VPNConnectionState.disconnected);
+      _headscaleService.updateConnectionStatus(ConnectionStatus.disconnected);
+
+      _logger.d('VPN disconnected successfully');
+      return true;
     } catch (e) {
       _logger.e('Failed to disconnect VPN: $e');
+      _updateState(VPNConnectionState.error);
       return false;
-    }
-  }
-
-  /// Generate WireGuard tunnel configuration
-  /// In production, this should fetch the actual config from Headscale API
-  Future<Map<String, String>?> _generateTunnelConfig() async {
-    try {
-      _logger.d('Generating WireGuard configuration');
-
-      // Use the Headscale server URL
-      final serverUrl = HeadscaleService.defaultServerUrl;
-
-      // In a production implementation, you would:
-      // 1. Fetch the device's WireGuard config from Headscale API
-      // 2. Parse the response to get the actual keys and IP addresses
-      // 3. Build the proper WireGuard configuration
-      //
-      // For now, we return a mock configuration
-      // The actual VPN connection happens through OIDC registration above
-
-      return {
-        'serverAddress': serverUrl,
-        'clientAddress': '100.64.0.1', // This should come from headscale API
-        'wgQuickConfig': '''
-[Interface]
-PrivateKey = <GENERATED_PRIVATE_KEY>
-Address = 100.64.0.1/32
-DNS = 100.100.100.100
-
-[Peer]
-PublicKey = <SERVER_PUBLIC_KEY>
-Endpoint = $serverUrl:51820
-AllowedIPs = 100.64.0.0/10
-PersistentKeepalive = 25
-''',
-      };
-    } catch (e) {
-      _logger.e('Failed to generate tunnel config: $e');
-      return null;
     }
   }
 
@@ -255,14 +222,20 @@ PersistentKeepalive = 25
   /// Update VPN statistics
   Future<void> _updateStats() async {
     try {
-      // This is a placeholder - actual implementation depends on wireguard_flutter API
-      // In a real implementation, you would query the WireGuard interface for stats
+      if (_currentTunnelName == null) return;
 
-      _currentStats = VPNStats(
-        bytesReceived: 0,
-        bytesSent: 0,
-        lastHandshake: DateTime.now(),
-      );
+      final stats = await _wireguard.tunnelGetStats(tunnelName: _currentTunnelName!);
+
+      if (stats != null) {
+        // Parse WireGuard stats
+        // The stats format depends on wireguard_flutter implementation
+        // This is a placeholder - adjust based on actual API
+        _currentStats = VPNStats(
+          bytesReceived: stats.totalRx ?? 0,
+          bytesSent: stats.totalTx ?? 0,
+          lastHandshake: stats.lastHandshakeTime,
+        );
+      }
     } catch (e) {
       _logger.e('Failed to update stats: $e');
     }

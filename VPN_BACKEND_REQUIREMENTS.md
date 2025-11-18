@@ -141,6 +141,149 @@ return {
 }
 ```
 
+## CRITICAL: Getting the Headscale Server Public Key
+
+**The most important piece of information needed is the Headscale server's WireGuard public key.**
+
+### What is the Server Public Key?
+
+When Headscale is installed, it creates its own WireGuard interface with a keypair. The **server public key** is the WireGuard public key that Headscale uses for its mesh coordination.
+
+### How to Get the Server Public Key
+
+There are several methods to retrieve the Headscale server's WireGuard public key:
+
+#### Method 1: Using Headscale CLI (Recommended)
+
+```bash
+# SSH into your Headscale server
+ssh user@headscale.ozzu.world
+
+# Get the server info which includes the public key
+headscale nodes list
+
+# Or check the Headscale configuration
+cat /etc/headscale/config.yaml | grep -A 5 "private_key_path"
+
+# The public key can also be derived from the private key
+wg pubkey < /var/lib/headscale/private.key
+```
+
+#### Method 2: Query Headscale API
+
+```bash
+# Using Headscale API to get server info
+curl -X GET https://headscale.ozzu.world/api/v1/apikey \
+  -H "Authorization: Bearer <headscale_api_key>"
+```
+
+#### Method 3: Check WireGuard Interface
+
+```bash
+# If Headscale is using a WireGuard interface directly
+sudo wg show
+
+# This will display:
+# interface: wg0
+#   public key: <THIS_IS_THE_KEY_YOU_NEED>
+#   private key: (hidden)
+#   listening port: 51820
+```
+
+#### Method 4: Read from Headscale Data Directory
+
+```bash
+# The public key is often stored in Headscale's data directory
+cat /var/lib/headscale/noise_public.key
+
+# Or derive it from the private key
+wg pubkey < /var/lib/headscale/noise_private.key
+```
+
+### What the Server Public Key Looks Like
+
+A valid WireGuard public key is a **44-character base64-encoded string**, for example:
+
+```
+gN3wkSA7yDJ5M2qKPxF8hVZ3kL9mN2pQ4rS6tU8vW0Y=
+```
+
+### Where to Store the Server Public Key
+
+Once you have the key, you can:
+
+1. **Store as environment variable:**
+   ```bash
+   export HEADSCALE_SERVER_PUBLIC_KEY="gN3wk..."
+   ```
+
+2. **Store in backend configuration:**
+   ```python
+   # config.py
+   HEADSCALE_SERVER_PUBLIC_KEY = "gN3wk..."
+   ```
+
+3. **Query it dynamically** (if Headscale API supports it)
+
+### Using the Server Public Key in Your Backend
+
+Update your device registration endpoint to return the actual key:
+
+```python
+def register_device(keycloak_token, device_name, platform):
+    # ... validate token and register with Headscale ...
+
+    return {
+        "privateKey": device_private_key,
+        "publicKey": device_public_key,
+        "address": assigned_ip,
+        "serverPublicKey": os.getenv("HEADSCALE_SERVER_PUBLIC_KEY"),  # ← REAL KEY HERE!
+        "serverEndpoint": "headscale.ozzu.world:51820",
+        "allowedIPs": "100.64.0.0/10",
+        "dns": "100.100.100.100",
+        "persistentKeepalive": 25
+    }
+```
+
+### Validation
+
+To verify you have the correct key:
+
+1. **Length check:** Should be exactly 44 characters (base64 encoding of 32 bytes)
+2. **Characters:** Only alphanumeric, +, /, and = (base64 charset)
+3. **Ends with =:** Often ends with `=` padding
+4. **Test connection:** Try creating a WireGuard tunnel with the key manually
+
+### Common Mistakes
+
+❌ **Don't do this:**
+```python
+"serverPublicKey": "PLACEHOLDER_SERVER_KEY"  # This will fail!
+"serverPublicKey": ""  # This will fail!
+"serverPublicKey": headscale_api_key  # Wrong! This is not a WireGuard key!
+```
+
+✅ **Do this:**
+```python
+"serverPublicKey": "gN3wkSA7yDJ5M2qKPxF8hVZ3kL9mN2pQ4rS6tU8vW0Y="  # Valid WireGuard public key
+```
+
+### Troubleshooting
+
+**If you can't find the server public key:**
+
+1. Check Headscale version - older versions may store keys differently
+2. Look for `noise_public.key` or `server_key.pub` in `/var/lib/headscale/`
+3. Check Headscale logs during startup - it may print the public key
+4. Review Headscale documentation for your specific version
+5. Contact Headscale support or check their GitHub issues
+
+**If the mobile app shows "KeyFormatException":**
+- The server public key is invalid or in wrong format
+- Make sure it's base64-encoded
+- Make sure there are no extra whitespace characters
+- Make sure it's the WireGuard public key, not an API key
+
 ## Headscale API Integration
 
 The backend will need to interact with Headscale's API. Key endpoints:

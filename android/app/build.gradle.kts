@@ -39,8 +39,3 @@ android {
 flutter {
     source = "../.."
 }
-
-dependencies {
-    // Tailscale Android SDK for native VPN with Headscale support
-    implementation("com.tailscale:ipn:1.74.1")
-}
