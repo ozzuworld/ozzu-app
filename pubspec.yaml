@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  livekit_client: ^2.4.8
+  livekit_client: ^2.3.6
   http: ^1.2.2
   keycloak_wrapper: ^1.4.0
   permission_handler: ^11.3.1
