@@ -1,0 +1,95 @@
+name: 📱 iOS IPA for AltStore (Device - Release)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'lib/**'
+      - 'ios/**'
+      - 'pubspec.yaml'
+      - '.github/workflows/ios-build-IPA-device.yml'
+
+jobs:
+  build_ipa_device:
+    name: 🏗️ Build IPA for iPhone/iPad (Release) for AltStore
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        lfs: true
+
+    - name: 🔄 Checkout LFS objects (Fix for PNG pointer files)
+      run: git lfs checkout
+
+    - name: 🐦 Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.24.0'
+        cache: true
+
+    - name: 📦 Get Flutter dependencies
+      run: flutter pub get
+
+    - name: ⚕️ Flutter doctor
+      run: flutter doctor -v
+
+    - name: 🍎 Install CocoaPods dependencies
+      run: |
+        cd ios
+        pod repo update
+        pod install --verbose
+        cd ..
+        echo "✅ CocoaPods dependencies installed"
+
+    # Disable automatic signing in Xcode project to bypass codesign requirements
+    - name: 🔓 Disable automatic signing (bypass Apple Developer requirements)
+      run: |
+        # Modify project.pbxproj to disable automatic signing
+        sed -i '' 's/ENABLE_AUTOMATIC_SIGNING = YES/ENABLE_AUTOMATIC_SIGNING = NO/g' ios/Runner.xcodeproj/project.pbxproj
+        sed -i '' 's/ProvisioningStyle = Automatic/ProvisioningStyle = Manual/g' ios/Runner.xcodeproj/project.pbxproj
+        echo "✅ Automatic signing disabled - bypassing Apple Developer requirements"
+
+    # Build using xcodebuild directly (bypasses Flutter's codesign validation)
+    - name: 🔨 Build iOS (Device, Release) - Bypass Flutter codesign validation
+      run: |
+        flutter build ios --release --no-codesign || echo "Flutter build may fail, continuing with xcodebuild..."
+        cd ios
+        xcodebuild -workspace Runner.xcworkspace \
+                   -scheme Runner \
+                   -configuration Release \
+                   -destination generic/platform=iOS \
+                   -archivePath build/Runner.xcarchive \
+                   archive \
+                   CODE_SIGN_IDENTITY="" \
+                   CODE_SIGNING_REQUIRED=NO \
+                   CODE_SIGNING_ALLOWED=NO \
+                   DEVELOPMENT_TEAM=""
+        echo "✅ Device Runner.app built successfully"
+
+    # Package device Runner.app into IPA for AltStore
+    - name: 📱 Create Device IPA for AltStore
+      run: |
+        cd ios/build
+        mkdir -p Payload
+        cp -R ../build/Release-iphoneos/Runner.app Payload/ || cp -R Runner.xcarchive/Products/Applications/Runner.app Payload/
+        zip -r ozzu-app-device.ipa Payload
+        echo "✅ ozzu-app-device.ipa created for iPhone/iPad"
+
+    - name: 📤 Upload Device IPA artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ozzu-app-device-ipa-${{ github.run_number }}
+        path: ios/build/ozzu-app-device.ipa
+        retention-days: 30
+
+    - name: 📢 Summary
+      run: |
+        echo "🎉 DEVICE IPA READY: ozzu-app-device.ipa"
+        echo "📱 Install via AltStore: My Apps → + → select IPA"
+        echo "✅ Compatible with iPhone 16 Pro (ARM64-device)"
+        echo "✅ No Apple Developer account required"
+        echo "⚠️  AltStore will re-sign with your Apple ID"
