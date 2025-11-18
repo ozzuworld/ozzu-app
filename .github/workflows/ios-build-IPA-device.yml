@@ -37,6 +37,17 @@ jobs:
     - name: ⚕️ Flutter doctor
       run: flutter doctor -v
 
+    # ========== ADD THIS SECTION HERE ==========
+    - name: 🍎 Install CocoaPods dependencies
+      run: |
+        cd ios
+        pod repo update
+        pod install --verbose
+        cd ..
+        echo "✅ CocoaPods dependencies installed"
+    # ==========================================
+  
+
     # Disable automatic signing in Xcode project to bypass codesign requirements
     - name: 🔓 Disable automatic signing (bypass Apple Developer requirements)
       run: |
